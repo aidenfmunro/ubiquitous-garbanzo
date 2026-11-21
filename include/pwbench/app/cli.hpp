@@ -3,8 +3,11 @@
 
 #include "pwbench/registry.hpp"
 
+#include <cstdint>
 #include <filesystem>
 #include <iosfwd>
+#include <optional>
+#include <string>
 
 namespace pwbench::app {
 
@@ -12,6 +15,10 @@ struct Options {
     std::string password;
     std::filesystem::path wordlist;
     std::size_t threads{1};
+    std::string algorithm{"md5"};
+    std::optional<std::uint32_t> memory_kib;
+    std::optional<std::uint32_t> iterations;
+    std::optional<std::uint32_t> lanes;
 };
 
 struct PreparedExperiment {

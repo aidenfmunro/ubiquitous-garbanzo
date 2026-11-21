@@ -4,14 +4,14 @@
 Алгоритмы и стратегии подключаются исходным кодом с пересборкой проекта.
 
 Реализованы CPU-исполнитель, потоковая словарная стратегия, автоматическая
-загрузка SecLists, общий CLI и MD5. **Сохранение отчётов и CUDA-перебор пока
+загрузка SecLists, общий CLI, MD5 и опциональный Argon2id. **Сохранение отчётов и CUDA-перебор пока
 не реализованы.** MD5 здесь — учебный алгоритм для эксперимента, а не способ
 хранения реальных паролей.
 
 ## Сборка и проверка
 
 Нужны CMake >= 3.24 и C++20-компилятор со стандартной библиотекой,
-поддерживающей concepts и `std::jthread`. Сторонних библиотек нет.
+поддерживающей concepts и `std::jthread`. Для Argon2id нужна библиотека `libargon2`.
 
 ```bash
 cmake -S . -B build -DCMAKE_BUILD_TYPE=Release
@@ -24,7 +24,7 @@ ctest --test-dir build --output-on-failure
 если она корректна. Конфигурация CMake сама по себе сеть не использует.
 
 `ctest --test-dir build --verbose` показывает отдельные тестовые сценарии.
-Для сборки только библиотеки: `-DBUILD_TESTING=OFF`.
+Чтобы отключить сборку тестов, передайте `-DBUILD_TESTING=OFF`.
 
 CPU-сборка не требует CUDA Toolkit. Для будущих CUDA-модулей предусмотрено:
 
@@ -66,6 +66,32 @@ cmake -S . -B build-cuda -DPWBENCH_ENABLE_CUDA=ON
 Общий `src/app/cli.cpp` не зависит от MD5. Реализация проверяется тестовыми
 векторами RFC 1321, граничными длинами, бинарными входами и сквозными тестами CLI.
 
+## Запуск Argon2id на CPU
+
+Установите `libargon2` с заголовками (`brew install argon2` на macOS или
+`apt install libargon2-dev` на Debian и Ubuntu). Включите модуль при конфигурации.
+Если CMake не находит библиотеку, передайте путь установки в `CMAKE_PREFIX_PATH`.
+Для Homebrew этот путь показывает команда `brew --prefix argon2`.
+
+```bash
+cmake -S . -B build-argon2id -DCMAKE_BUILD_TYPE=Release -DPWBENCH_ENABLE_ARGON2ID=ON
+cmake --build build-argon2id --parallel
+ctest --test-dir build-argon2id --output-on-failure
+printf 'another-fixture\nbench-fixture\n' > build-argon2id/fixture.txt
+./build-argon2id/pwbench --algorithm argon2id --password bench-fixture \
+  --wordlist build-argon2id/fixture.txt --memory-kib 65536 --iterations 3 --lanes 1
+```
+
+`--memory-kib`, `--iterations` и `--lanes` задают параметры `m`, `t` и `p`.
+Значения по умолчанию — 65 536 КиБ, 3 прохода и 1 линия. Минимум памяти на одно
+вычисление составляет `8 × p` КиБ. `--threads` задаёт число потоков стенда.
+Каждое одновременно выполняемое хеширование выделяет собственную рабочую память.
+
+`target_hash` выводится в формате PHC и содержит версию, параметры, соль
+и хеш. Стенд использует фиксированную публичную 16-байтную соль для повторяемых
+экспериментов с синтетическими паролями. Хеш цели вычисляется перед замером.
+Вызовы без `--algorithm` по умолчанию используют MD5.
+
 ## Словарь
 
 Список автоматически сохраняется в `build/data/Most-Popular-Letter-Passes.txt`.
@@ -90,10 +116,10 @@ CPU-алгоритму стенда. Файл читается блоками п
 
 ## Общий слой приложения
 
-`pwbench::app` разбирает `--password`, `--wordlist`, `--threads` и `--help`,
+`pwbench::app` разбирает параметры командной строки,
 запускает подготовленный эксперимент через реестр и выводит результат.
-Путь к скачанному словарю подставляется автоматически. Код CLI не зависит
-от конкретного алгоритма и не знает устройство его цели.
+Путь к скачанному словарю подставляется автоматически. Точка входа выбирает
+функцию подготовки по имени алгоритма.
 
 Точка входа приложения передаёт в `app::run()` функцию подготовки эксперимента.
 Она получает `app::Options` и возвращает `PreparedExperiment`: выбранное сочетание,
@@ -147,7 +173,9 @@ src/
   app/cli.cpp        аргументы CLI, запуск и вывод
   app/main.cpp       точка входа приложения
   app/md5_experiment.cpp связывание MD5 со стендом
+  app/argon2id_experiment.cpp связывание Argon2id со стендом
   md5/md5.cpp        реализация MD5
+  argon2id/argon2id.cpp адаптер к libargon2
 tests/
   CMakeLists.txt     сборка и регистрация тестов
   fixtures.hpp       только тестовые алгоритм и источники кандидатов

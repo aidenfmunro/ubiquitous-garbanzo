@@ -18,13 +18,14 @@ std::string_view argument_value(int& index, int argc, char** argv) {
     return argv[++index];
 }
 
-std::size_t parse_threads(std::string_view value) {
-    std::size_t threads{};
-    const auto [end, error] = std::from_chars(value.data(), value.data() + value.size(), threads);
-    if (error != std::errc{} || end != value.data() + value.size() || threads == 0) {
-        throw std::invalid_argument("--threads must be a positive integer");
+template <class Integer>
+Integer parse_positive_integer(std::string_view name, std::string_view value) {
+    Integer number{};
+    const auto [end, error] = std::from_chars(value.data(), value.data() + value.size(), number);
+    if (error != std::errc{} || end != value.data() + value.size() || number == 0) {
+        throw std::invalid_argument(std::string(name) + " must be a positive integer in range");
     }
-    return threads;
+    return number;
 }
 
 std::optional<Options> parse_options(int argc, char** argv) {
@@ -42,7 +43,19 @@ std::optional<Options> parse_options(int argc, char** argv) {
         } else if (argument == "--wordlist") {
             options.wordlist = argument_value(index, argc, argv);
         } else if (argument == "--threads") {
-            options.threads = parse_threads(argument_value(index, argc, argv));
+            options.threads =
+                parse_positive_integer<std::size_t>(argument, argument_value(index, argc, argv));
+        } else if (argument == "--algorithm") {
+            options.algorithm = argument_value(index, argc, argv);
+        } else if (argument == "--memory-kib") {
+            options.memory_kib =
+                parse_positive_integer<std::uint32_t>(argument, argument_value(index, argc, argv));
+        } else if (argument == "--iterations") {
+            options.iterations =
+                parse_positive_integer<std::uint32_t>(argument, argument_value(index, argc, argv));
+        } else if (argument == "--lanes") {
+            options.lanes =
+                parse_positive_integer<std::uint32_t>(argument, argument_value(index, argc, argv));
         } else {
             throw std::invalid_argument("unknown argument: " + std::string(argument));
         }
@@ -50,11 +63,18 @@ std::optional<Options> parse_options(int argc, char** argv) {
     if (!has_password) {
         throw std::invalid_argument("--password is required");
     }
+    if (options.algorithm != "argon2id" &&
+        (options.memory_kib || options.iterations || options.lanes)) {
+        throw std::invalid_argument(
+            "--memory-kib, --iterations and --lanes require --algorithm argon2id");
+    }
     return options;
 }
 
 void print_help(std::ostream& output) {
-    output << "Usage: pwbench --password TEXT [--wordlist PATH] [--threads N]\n"
+    output << "Usage: pwbench --password TEXT [--algorithm md5|argon2id] [--wordlist PATH] "
+              "[--threads N]\n"
+              "Argon2id (if enabled at build time): [--memory-kib N] [--iterations N] [--lanes N]\n"
               "The default wordlist is downloaded automatically during the build.\n"
               "Exit codes: 0 = found, 1 = not found, 2 = error.\n";
 }

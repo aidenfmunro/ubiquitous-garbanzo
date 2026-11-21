@@ -30,6 +30,10 @@ include(cmake/Wordlist.cmake)
 
 include(CTest)
 add_subdirectory(src/md5)
+option(PWBENCH_ENABLE_ARGON2ID "Build the CPU Argon2id experiment with libargon2" OFF)
+if(PWBENCH_ENABLE_ARGON2ID)
+    add_subdirectory(src/argon2id)
+endif()
 add_subdirectory(src/app)
 
 if(BUILD_TESTING)
