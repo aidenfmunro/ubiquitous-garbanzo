@@ -17,6 +17,7 @@ find_package(Threads REQUIRED)
 add_library(pwbench_core
     src/cpu_run_state.cpp
     src/registry.cpp
+    src/wordlist.cpp
 )
 add_library(pwbench::core ALIAS pwbench_core)
 
@@ -24,6 +25,8 @@ target_compile_features(pwbench_core PUBLIC cxx_std_20)
 target_compile_options(pwbench_core PRIVATE -Wall -Wextra -Wpedantic)
 target_include_directories(pwbench_core PUBLIC "${PROJECT_SOURCE_DIR}/include")
 target_link_libraries(pwbench_core PUBLIC Threads::Threads)
+
+include(cmake/Wordlist.cmake)
 
 include(CTest)
 if(BUILD_TESTING)
