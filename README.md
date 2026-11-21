@@ -53,6 +53,9 @@ cmake --build build --target format-check
 ## Структура
 
 ```text
+CMakeLists.txt       проект, библиотека и зависимости
+cmake/
+  ClangFormat.cmake цели format и format-check
 include/pwbench/
   types.hpp          байты кандидата, лимиты, результат и причины завершения
   contracts.hpp      concepts для CPU-алгоритма, стратегии и задания
@@ -64,6 +67,7 @@ src/
   cpu_run_state.cpp  лимиты, остановка, совпадения, ошибки и итоговый результат
   registry.cpp       регистрация и запуск подготовленных экспериментов
 tests/
+  CMakeLists.txt     сборка и регистрация тестов
   fixtures.hpp       только тестовые алгоритм и источники кандидатов
   *_test.cpp         контракты, исполнение и сквозной запуск через реестр
 ```
