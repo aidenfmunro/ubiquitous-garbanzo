@@ -29,6 +29,7 @@ target_link_libraries(pwbench_core PUBLIC Threads::Threads)
 include(cmake/Wordlist.cmake)
 
 include(CTest)
+add_subdirectory(src/md5)
 add_subdirectory(src/app)
 
 if(BUILD_TESTING)
