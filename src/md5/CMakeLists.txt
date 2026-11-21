@@ -1,0 +1,12 @@
+add_library(pwbench_md5 md5.cpp)
+add_library(pwbench::md5 ALIAS pwbench_md5)
+target_compile_options(pwbench_md5 PRIVATE -Wall -Wextra -Wpedantic)
+target_link_libraries(pwbench_md5 PUBLIC pwbench::core)
+
+if(BUILD_TESTING)
+    add_executable(md5_test "${PROJECT_SOURCE_DIR}/tests/md5_test.cpp")
+    target_compile_options(md5_test PRIVATE -Wall -Wextra -Wpedantic)
+    target_link_libraries(md5_test PRIVATE pwbench::md5)
+    add_test(NAME pwbench.md5 COMMAND md5_test)
+    set_tests_properties(pwbench.md5 PROPERTIES TIMEOUT 30)
+endif()
