@@ -33,6 +33,9 @@ WordlistStrategy::WordlistStrategy(const std::filesystem::path& path, std::size_
         block_bytes > static_cast<std::size_t>(std::numeric_limits<std::streamsize>::max())) {
         throw std::invalid_argument("wordlist block size is out of range");
     }
+    if (std::filesystem::is_directory(path)) {
+        throw std::runtime_error("wordlist path is a directory: " + path.string());
+    }
     input_.open(path, std::ios::binary);
     if (!input_) {
         throw std::runtime_error("cannot open wordlist: " + path.string());
