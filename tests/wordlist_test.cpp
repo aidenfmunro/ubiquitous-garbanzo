@@ -3,7 +3,8 @@
 
 #include "fixtures.hpp"
 #include "temp_directory.hpp"
-#include "test_support.hpp"
+
+#include <gtest/gtest.h>
 
 #include <limits>
 
@@ -21,98 +22,104 @@ std::vector<pwbench::Candidate> read_all(pwbench::WordlistStrategy& strategy) {
     return candidates;
 }
 
-void preserves_lines_across_block_boundaries() {
+TEST(WordlistTest, PreservesLinesAcrossBlockBoundaries) {
     TempDirectory directory;
     const auto path = directory.write("words.txt", "alpha\nbeta\ngamma\nlast");
     const std::vector<pwbench::Candidate> expected{
         fixtures::bytes("alpha"), fixtures::bytes("beta"), fixtures::bytes("gamma"),
         fixtures::bytes("last")};
     for (std::size_t block_size = 1; block_size <= 32; ++block_size) {
+        SCOPED_TRACE(block_size);
         pwbench::WordlistStrategy strategy(path, block_size);
-        CHECK(read_all(strategy) == expected);
-        CHECK(!strategy.next_work());
+        EXPECT_EQ(read_all(strategy), expected);
+        EXPECT_FALSE(strategy.next_work());
     }
 }
 
-void preserves_empty_passwords_spaces_and_line_endings() {
+TEST(WordlistTest, PreservesEmptyPasswordsSpacesAndLineEndings) {
     TempDirectory directory;
     const auto path = directory.write("words.txt", "\n\r\n  word \r\n\tvalue\nlast\r");
     const std::vector<pwbench::Candidate> expected{
         {}, {}, fixtures::bytes("  word "), fixtures::bytes("\tvalue"), fixtures::bytes("last\r")};
     for (std::size_t block_size = 1; block_size <= 16; ++block_size) {
+        SCOPED_TRACE(block_size);
         pwbench::WordlistStrategy strategy(path, block_size);
-        CHECK(read_all(strategy) == expected);
+        EXPECT_EQ(read_all(strategy), expected);
     }
 }
 
-void supports_empty_files_and_trailing_newlines() {
+TEST(WordlistTest, SupportsEmptyFilesAndTrailingNewlines) {
     TempDirectory directory;
     pwbench::WordlistStrategy empty(directory.write("empty.txt", ""));
-    CHECK(!empty.next_work());
-    CHECK(!empty.next_work());
+    EXPECT_FALSE(empty.next_work());
+    EXPECT_FALSE(empty.next_work());
 
     pwbench::WordlistStrategy terminated(directory.write("terminated.txt", "word\n"), 5);
-    CHECK(read_all(terminated) == std::vector<pwbench::Candidate>{fixtures::bytes("word")});
+    EXPECT_EQ(read_all(terminated), std::vector<pwbench::Candidate>{fixtures::bytes("word")});
 
     pwbench::WordlistStrategy newline(directory.write("newline.txt", "\n"), 1);
-    CHECK(read_all(newline) == std::vector<pwbench::Candidate>{pwbench::Candidate{}});
+    EXPECT_EQ(read_all(newline), std::vector<pwbench::Candidate>{pwbench::Candidate{}});
 }
 
-void supports_binary_candidates() {
+TEST(WordlistTest, SupportsBinaryCandidates) {
     TempDirectory directory;
     const std::string data{'a', '\0', static_cast<char>(255), '\n', 'b'};
     pwbench::WordlistStrategy strategy(directory.write("binary.txt", data), 2);
     const std::vector<pwbench::Candidate> expected{{'a', 0, 255}, {'b'}};
-    CHECK(read_all(strategy) == expected);
+    EXPECT_EQ(read_all(strategy), expected);
 }
 
-void long_line_stays_in_one_work_item() {
+TEST(WordlistTest, LongLineStaysInOneWorkItem) {
     TempDirectory directory;
     const std::string long_word(4096, 'a');
     pwbench::WordlistStrategy strategy(directory.write("long.txt", long_word + "\nnext\n"), 8);
     auto first = strategy.next_work();
-    CHECK(first.has_value());
+    ASSERT_TRUE(first.has_value());
     const auto candidate = first->next_candidate();
-    CHECK(candidate.has_value());
-    CHECK(candidate->size == long_word.size());
-    CHECK(!first->next_candidate());
-    CHECK(read_all(strategy) == std::vector<pwbench::Candidate>{fixtures::bytes("next")});
+    ASSERT_TRUE(candidate.has_value());
+    EXPECT_EQ(candidate->size, long_word.size());
+    EXPECT_FALSE(first->next_candidate());
+    EXPECT_EQ(read_all(strategy), std::vector<pwbench::Candidate>{fixtures::bytes("next")});
 }
 
-void work_owns_bytes_after_source_is_destroyed() {
+TEST(WordlistTest, WorkOwnsBytesAfterSourceIsDestroyed) {
     TempDirectory directory;
     std::optional<pwbench::WordlistWork> first;
     {
         pwbench::WordlistStrategy strategy(directory.write("owned.txt", "first\nsecond\n"), 2);
         first = strategy.next_work();
-        CHECK(first.has_value());
+        ASSERT_TRUE(first.has_value());
         auto second = strategy.next_work();
-        CHECK(second.has_value());
+        ASSERT_TRUE(second.has_value());
         const auto candidate = second->next_candidate();
-        CHECK(candidate.has_value());
-        CHECK(candidate->size == 6);
+        ASSERT_TRUE(candidate.has_value());
+        EXPECT_EQ(candidate->size, 6);
     }
     const auto candidate = first->next_candidate();
-    CHECK(candidate.has_value());
-    CHECK(pwbench::Candidate(candidate->data, candidate->data + candidate->size) ==
-          fixtures::bytes("first"));
+    ASSERT_TRUE(candidate.has_value());
+    EXPECT_EQ(pwbench::Candidate(candidate->data, candidate->data + candidate->size),
+              fixtures::bytes("first"));
 }
 
-void rejects_invalid_sources_and_block_sizes() {
+TEST(WordlistTest, RejectsInvalidSourcesAndBlockSizes) {
     TempDirectory directory;
     const auto path = directory.write("words.txt", "word\n");
-    check_throws<std::runtime_error>(
-        [&] { pwbench::WordlistStrategy strategy(directory.path() / "missing.txt"); });
-    check_throws<std::invalid_argument>([&] { pwbench::WordlistStrategy strategy(path, 0); });
-    check_throws<std::invalid_argument>(
-        [&] { pwbench::WordlistStrategy strategy(path, std::numeric_limits<std::size_t>::max()); });
-    check_throws<std::runtime_error>([&] {
-        pwbench::WordlistStrategy strategy(directory.path());
-        strategy.next_work();
-    });
+    EXPECT_THROW(
+        { pwbench::WordlistStrategy strategy(directory.path() / "missing.txt"); },
+        std::runtime_error);
+    EXPECT_THROW({ pwbench::WordlistStrategy strategy(path, 0); }, std::invalid_argument);
+    EXPECT_THROW(
+        { pwbench::WordlistStrategy strategy(path, std::numeric_limits<std::size_t>::max()); },
+        std::invalid_argument);
+    EXPECT_THROW(
+        {
+            pwbench::WordlistStrategy strategy(directory.path());
+            strategy.next_work();
+        },
+        std::runtime_error);
 }
 
-void runs_with_the_existing_cpu_executor() {
+TEST(WordlistTest, RunsWithTheExistingCpuExecutor) {
     TempDirectory directory;
     const auto path = directory.write("pipeline.txt", "alpha\nbeta\ngamma\n");
     const fixtures::TestAlgorithm algorithm;
@@ -120,28 +127,16 @@ void runs_with_the_existing_cpu_executor() {
     const auto target = algorithm.make_target(fixtures::view(password));
     pwbench::WordlistStrategy strategy(path, 2);
     const auto result = pwbench::CpuExecutor::run(algorithm, target, strategy, {}, {.threads = 4});
-    CHECK(result.reason == pwbench::StopReason::found);
-    CHECK(result.candidate == password);
-    CHECK(result.checks >= 1 && result.checks <= 3);
+    EXPECT_EQ(result.reason, pwbench::StopReason::found);
+    EXPECT_EQ(result.candidate, password);
+    EXPECT_GE(result.checks, 1U);
+    EXPECT_LE(result.checks, 3U);
 
     pwbench::WordlistStrategy absent(path, 2);
     const auto exhausted =
         pwbench::CpuExecutor::run(algorithm, fixtures::absent_target(), absent, {}, {.threads = 4});
-    CHECK(exhausted.reason == pwbench::StopReason::exhausted);
-    CHECK(exhausted.checks == 3);
+    EXPECT_EQ(exhausted.reason, pwbench::StopReason::exhausted);
+    EXPECT_EQ(exhausted.checks, 3);
 }
 
-}
-
-int main() {
-    return run_tests({
-        {"wordlist block boundaries", preserves_lines_across_block_boundaries},
-        {"empty passwords and line endings", preserves_empty_passwords_spaces_and_line_endings},
-        {"empty files and trailing newlines", supports_empty_files_and_trailing_newlines},
-        {"binary candidates", supports_binary_candidates},
-        {"long lines", long_line_stays_in_one_work_item},
-        {"wordlist work ownership", work_owns_bytes_after_source_is_destroyed},
-        {"invalid wordlist inputs", rejects_invalid_sources_and_block_sizes},
-        {"wordlist CPU pipeline", runs_with_the_existing_cpu_executor},
-    });
 }

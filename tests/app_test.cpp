@@ -1,7 +1,8 @@
 #include "pwbench/app/cli.hpp"
 
 #include "module_fixtures.hpp"
-#include "test_support.hpp"
+
+#include <gtest/gtest.h>
 
 #include <sstream>
 #include <vector>
@@ -34,63 +35,64 @@ std::vector<std::string> selected(std::vector<std::string> arguments) {
     return arguments;
 }
 
-void runs_registered_modules_with_their_own_options() {
+TEST(AppTest, RunsRegisteredModulesWithTheirOwnOptions) {
     const auto registry = fixtures::module_registry();
     const auto sum =
         invoke(selected({"--password", "beta", "--salt", "11", "--threads", "2"}), registry);
-    CHECK(sum.code == 0);
-    CHECK(sum.errors.empty());
-    CHECK(sum.output.find("algorithm: test-sum\n") != std::string::npos);
-    CHECK(sum.output.find("target_hash: 423\n") != std::string::npos);
-    CHECK(sum.output.find("candidate: \"beta\"\n") != std::string::npos);
+    EXPECT_EQ(sum.code, 0);
+    EXPECT_TRUE(sum.errors.empty());
+    EXPECT_NE(sum.output.find("algorithm: test-sum\n"), std::string::npos);
+    EXPECT_NE(sum.output.find("target_hash: 423\n"), std::string::npos);
+    EXPECT_NE(sum.output.find("candidate: \"beta\"\n"), std::string::npos);
 
     const auto length =
         invoke({"--factor", "3", "--second", "beta", "--algorithm", "test-length", "--strategy",
                 "test-blocks", "--backend", "cpu", "--password", "beta"},
                registry);
-    CHECK(length.code == 0);
-    CHECK(length.errors.empty());
-    CHECK(length.output.find("target_hash: 12\n") != std::string::npos);
+    EXPECT_EQ(length.code, 0);
+    EXPECT_TRUE(length.errors.empty());
+    EXPECT_NE(length.output.find("target_hash: 12\n"), std::string::npos);
 
     const auto counter = invoke({"--algorithm", "test-length", "--strategy", "test-counter",
                                  "--backend", "cpu", "--password", "beta", "--count", "17"},
                                 registry);
-    CHECK(counter.code == 1);
-    CHECK(counter.output.find("checks: 17\n") != std::string::npos);
+    EXPECT_EQ(counter.code, 1);
+    EXPECT_NE(counter.output.find("checks: 17\n"), std::string::npos);
 }
 
-void no_selection_shows_help_without_preparation() {
+TEST(AppTest, NoSelectionShowsHelpWithoutPreparation) {
     const auto registry = fixtures::module_registry();
     fixtures::SumModule::preparations = 0;
     for (const auto& arguments : std::vector<std::vector<std::string>>{
              {}, {"--password", "beta"}, {"--threads", "4"}, {"--help"}}) {
+        SCOPED_TRACE(::testing::PrintToString(arguments));
         const auto result = invoke(arguments, registry);
-        CHECK(result.code == 0);
-        CHECK(result.errors.empty());
-        CHECK(result.output.find("Usage: pwbench") != std::string::npos);
-        CHECK(result.output.find("--algorithm test-sum --strategy test-blocks --backend cpu") !=
-              std::string::npos);
-        CHECK(result.output.find("--factor N") != std::string::npos);
-        CHECK(result.output.find("status:") == std::string::npos);
+        EXPECT_EQ(result.code, 0);
+        EXPECT_TRUE(result.errors.empty());
+        EXPECT_NE(result.output.find("Usage: pwbench"), std::string::npos);
+        EXPECT_NE(result.output.find("--algorithm test-sum --strategy test-blocks --backend cpu"),
+                  std::string::npos);
+        EXPECT_NE(result.output.find("--factor N"), std::string::npos);
+        EXPECT_EQ(result.output.find("status:"), std::string::npos);
     }
-    CHECK(fixtures::SumModule::preparations == 0);
+    EXPECT_EQ(fixtures::SumModule::preparations, 0);
 }
 
-void help_is_generated_from_selected_module_descriptions() {
+TEST(AppTest, HelpIsGeneratedFromSelectedModuleDescriptions) {
     const auto registry = fixtures::module_registry();
     const auto result =
         invoke({"--algorithm", "test-length", "--strategy", "test-counter", "--help"}, registry);
-    CHECK(result.code == 0);
-    CHECK(result.output.find("--factor N") != std::string::npos);
-    CHECK(result.output.find("--count N") != std::string::npos);
-    CHECK(result.output.find("--salt") == std::string::npos);
-    CHECK(result.output.find("--first") == std::string::npos);
-    CHECK(result.output.find("test-sum") == std::string::npos);
+    EXPECT_EQ(result.code, 0);
+    EXPECT_NE(result.output.find("--factor N"), std::string::npos);
+    EXPECT_NE(result.output.find("--count N"), std::string::npos);
+    EXPECT_EQ(result.output.find("--salt"), std::string::npos);
+    EXPECT_EQ(result.output.find("--first"), std::string::npos);
+    EXPECT_EQ(result.output.find("test-sum"), std::string::npos);
     const auto unavailable = invoke({"--algorithm", "missing", "--help"}, registry);
-    CHECK(unavailable.output.find("No registered combinations match") != std::string::npos);
+    EXPECT_NE(unavailable.output.find("No registered combinations match"), std::string::npos);
 }
 
-void partial_and_unsupported_selection_never_falls_back() {
+TEST(AppTest, PartialAndUnsupportedSelectionNeverFallsBack) {
     const auto registry = fixtures::module_registry();
     fixtures::SumModule::preparations = 0;
     const std::vector<std::string> cases[]{
@@ -108,15 +110,16 @@ void partial_and_unsupported_selection_never_falls_back() {
          "--password", "beta"},
     };
     for (const auto& arguments : cases) {
+        SCOPED_TRACE(::testing::PrintToString(arguments));
         const auto result = invoke(arguments, registry);
-        CHECK(result.code == 2);
-        CHECK(result.output.empty());
-        CHECK(result.errors.find("Usage: pwbench") != std::string::npos);
+        EXPECT_EQ(result.code, 2);
+        EXPECT_TRUE(result.output.empty());
+        EXPECT_NE(result.errors.find("Usage: pwbench"), std::string::npos);
     }
-    CHECK(fixtures::SumModule::preparations == 0);
+    EXPECT_EQ(fixtures::SumModule::preparations, 0);
 }
 
-void rejects_invalid_arguments_before_hashing() {
+TEST(AppTest, RejectsInvalidArgumentsBeforeHashing) {
     const auto registry = fixtures::module_registry();
     fixtures::SumModule::preparations = 0;
     const std::vector<std::string> cases[]{
@@ -137,22 +140,23 @@ void rejects_invalid_arguments_before_hashing() {
         {"--password", "beta", "unexpected"},
     };
     for (const auto& arguments : cases) {
+        SCOPED_TRACE(::testing::PrintToString(arguments));
         const auto result = invoke(selected(arguments), registry);
-        CHECK(result.code == 2);
-        CHECK(result.output.empty());
-        CHECK(!result.errors.empty());
+        EXPECT_EQ(result.code, 2);
+        EXPECT_TRUE(result.output.empty());
+        EXPECT_FALSE(result.errors.empty());
     }
-    CHECK(fixtures::SumModule::preparations == 0);
+    EXPECT_EQ(fixtures::SumModule::preparations, 0);
 }
 
-void accepts_an_empty_password() {
+TEST(AppTest, AcceptsAnEmptyPassword) {
     const auto result =
         invoke(selected({"--password", "", "--first", ""}), fixtures::module_registry());
-    CHECK(result.code == 0);
-    CHECK(result.output.find("candidate: \"\"\n") != std::string::npos);
+    EXPECT_EQ(result.code, 0);
+    EXPECT_NE(result.output.find("candidate: \"\"\n"), std::string::npos);
 }
 
-void distinguishes_execution_and_preparation_errors() {
+TEST(AppTest, DistinguishesExecutionAndPreparationErrors) {
     pwbench::Registry registry;
     const pwbench::Selection selection{"test-sum", "test-blocks", pwbench::Backend::cpu};
     registry.add(selection, {},
@@ -160,9 +164,9 @@ void distinguishes_execution_and_preparation_errors() {
                      throw std::runtime_error("preparation failure");
                  });
     const auto failed = invoke(selected({"--password", "x"}), registry);
-    CHECK(failed.code == 2);
-    CHECK(failed.output.empty());
-    CHECK(failed.errors.find("preparation failure") != std::string::npos);
+    EXPECT_EQ(failed.code, 2);
+    EXPECT_TRUE(failed.output.empty());
+    EXPECT_NE(failed.errors.find("preparation failure"), std::string::npos);
     pwbench::Registry execution;
     execution.add(selection, {}, [](const pwbench::ExperimentRequest&) {
         return pwbench::PreparedExperiment{"test",
@@ -171,27 +175,15 @@ void distinguishes_execution_and_preparation_errors() {
                                            }};
     });
     const auto error = invoke(selected({"--password", "x"}), execution);
-    CHECK(error.code == 2);
-    CHECK(error.output.find("status: error\n") != std::string::npos);
-    CHECK(error.errors.find("execution failure") != std::string::npos);
+    EXPECT_EQ(error.code, 2);
+    EXPECT_NE(error.output.find("status: error\n"), std::string::npos);
+    EXPECT_NE(error.errors.find("execution failure"), std::string::npos);
     pwbench::Registry unknown;
     unknown.add(selection, {},
                 [](const pwbench::ExperimentRequest&) -> pwbench::PreparedExperiment { throw 42; });
-    CHECK(invoke(selected({"--password", "x"}), unknown).errors.find("unknown preparation error") !=
-          std::string::npos);
+    EXPECT_NE(
+        invoke(selected({"--password", "x"}), unknown).errors.find("unknown preparation error"),
+        std::string::npos);
 }
 
-}
-
-int main() {
-    return run_tests({
-        {"module-specific options without CLI changes",
-         runs_registered_modules_with_their_own_options},
-        {"no selection means help", no_selection_shows_help_without_preparation},
-        {"generated module help", help_is_generated_from_selected_module_descriptions},
-        {"no implicit selection or fallback", partial_and_unsupported_selection_never_falls_back},
-        {"argument validation", rejects_invalid_arguments_before_hashing},
-        {"empty password", accepts_an_empty_password},
-        {"preparation and execution errors", distinguishes_execution_and_preparation_errors},
-    });
 }
