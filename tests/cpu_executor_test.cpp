@@ -1,7 +1,8 @@
 #include "pwbench/cpu_executor.hpp"
 
 #include "fixtures.hpp"
-#include "test_support.hpp"
+
+#include <gtest/gtest.h>
 
 #include <atomic>
 #include <barrier>
@@ -15,7 +16,7 @@ using pwbench::StopReason;
 
 namespace {
 
-void finds_candidate_and_owns_result() {
+TEST(CpuExecutorTest, FindsCandidateAndOwnsResult) {
     const fixtures::TestAlgorithm algorithm;
     const auto expected = fixtures::bytes("beta");
     const auto target = algorithm.make_target(fixtures::view(expected));
@@ -25,38 +26,39 @@ void finds_candidate_and_owns_result() {
             {fixtures::bytes("alpha"), expected, fixtures::bytes("gamma")});
         result = CpuExecutor::run(algorithm, target, strategy);
     }
-    CHECK(result.reason == StopReason::found);
-    CHECK(result.candidate == expected);
-    CHECK(result.checks == 2);
-    CHECK(result.elapsed >= 0ns);
-    CHECK(result.error.empty());
-    CHECK(algorithm.matches(algorithm.hash(fixtures::view(*result.candidate), target), target));
+    EXPECT_EQ(result.reason, StopReason::found);
+    ASSERT_EQ(result.candidate, expected);
+    EXPECT_EQ(result.checks, 2);
+    EXPECT_GE(result.elapsed, 0ns);
+    EXPECT_TRUE(result.error.empty());
+    EXPECT_TRUE(
+        algorithm.matches(algorithm.hash(fixtures::view(*result.candidate), target), target));
 }
 
-void supports_empty_and_binary_candidates() {
+TEST(CpuExecutorTest, SupportsEmptyAndBinaryCandidates) {
     const fixtures::TestAlgorithm algorithm;
     {
         const pwbench::Candidate expected;
         const auto target = algorithm.make_target(fixtures::view(expected));
         fixtures::BlockStrategy strategy({expected});
         const auto result = CpuExecutor::run(algorithm, target, strategy);
-        CHECK(result.reason == StopReason::found);
-        CHECK(result.candidate.has_value());
-        CHECK(result.candidate->empty());
-        CHECK(result.checks == 1);
+        EXPECT_EQ(result.reason, StopReason::found);
+        ASSERT_TRUE(result.candidate.has_value());
+        EXPECT_TRUE(result.candidate->empty());
+        EXPECT_EQ(result.checks, 1);
     }
     {
         const pwbench::Candidate expected{0, 65, 255};
         const auto target = algorithm.make_target(fixtures::view(expected));
         fixtures::BlockStrategy strategy({{1, 2}, expected});
         const auto result = CpuExecutor::run(algorithm, target, strategy);
-        CHECK(result.reason == StopReason::found);
-        CHECK(result.candidate == expected);
-        CHECK(result.checks == 2);
+        EXPECT_EQ(result.reason, StopReason::found);
+        EXPECT_EQ(result.candidate, expected);
+        EXPECT_EQ(result.checks, 2);
     }
 }
 
-void exhausts_stream_across_workers() {
+TEST(CpuExecutorTest, ExhaustsStreamAcrossWorkers) {
     struct CountingAlgorithm : fixtures::TestAlgorithm {
         std::atomic<std::uint64_t>* observed;
         digest_type hash(pwbench::CandidateView candidate, const target_type& target) const {
@@ -69,18 +71,18 @@ void exhausts_stream_across_workers() {
     fixtures::CounterStrategy strategy(20'003, 31);
     const auto result =
         CpuExecutor::run(algorithm, fixtures::absent_target(), strategy, {}, {.threads = 4});
-    CHECK(result.reason == StopReason::exhausted);
-    CHECK(result.checks == 20'003);
-    CHECK(observed.load() == result.checks);
-    CHECK(!result.candidate);
+    EXPECT_EQ(result.reason, StopReason::exhausted);
+    EXPECT_EQ(result.checks, 20'003);
+    EXPECT_EQ(observed.load(), result.checks);
+    EXPECT_FALSE(result.candidate);
 }
 
-void handles_empty_source_and_empty_work() {
+TEST(CpuExecutorTest, HandlesEmptySourceAndEmptyWork) {
     fixtures::CounterStrategy empty(0);
     const auto exhausted = CpuExecutor::run(fixtures::TestAlgorithm{}, fixtures::absent_target(),
                                             empty, {}, {.threads = 4});
-    CHECK(exhausted.reason == StopReason::exhausted);
-    CHECK(exhausted.checks == 0);
+    EXPECT_EQ(exhausted.reason, StopReason::exhausted);
+    EXPECT_EQ(exhausted.checks, 0);
 
     struct EmptyFirstStrategy {
         using work_type = fixtures::CounterStrategy::work_type;
@@ -98,23 +100,24 @@ void handles_empty_source_and_empty_work() {
     } strategy;
     const auto result =
         CpuExecutor::run(fixtures::TestAlgorithm{}, fixtures::absent_target(), strategy);
-    CHECK(result.reason == StopReason::exhausted);
-    CHECK(result.checks == 1);
+    EXPECT_EQ(result.reason, StopReason::exhausted);
+    EXPECT_EQ(result.checks, 1);
 }
 
-void enforces_exact_check_limit() {
+TEST(CpuExecutorTest, EnforcesExactCheckLimit) {
     for (const auto thread_count : {std::size_t{1}, std::size_t{4}}) {
+        SCOPED_TRACE(thread_count);
         fixtures::CounterStrategy strategy(20'000, 71);
         const auto result =
             CpuExecutor::run(fixtures::TestAlgorithm{}, fixtures::absent_target(), strategy,
                              {.max_checks = 1'003, .time_limit = {}}, {.threads = thread_count});
-        CHECK(result.reason == StopReason::check_limit);
-        CHECK(result.checks == 1'003);
-        CHECK(!result.candidate);
+        EXPECT_EQ(result.reason, StopReason::check_limit);
+        EXPECT_EQ(result.checks, 1'003);
+        EXPECT_FALSE(result.candidate);
     }
 }
 
-void match_at_check_limit_is_success() {
+TEST(CpuExecutorTest, MatchAtCheckLimitIsSuccess) {
     const fixtures::TestAlgorithm algorithm;
     const auto expected = fixtures::bytes("b");
     const auto target = algorithm.make_target(fixtures::view(expected));
@@ -122,18 +125,18 @@ void match_at_check_limit_is_success() {
     const auto result = CpuExecutor::run(algorithm, target, strategy,
                                          {.max_checks = 2, .time_limit = {}}, {.threads = 4});
     // Parallel completion order can differ from source order.
-    CHECK(result.checks <= 2);
-    CHECK(result.reason == StopReason::found || result.reason == StopReason::check_limit);
+    EXPECT_LE(result.checks, 2U);
+    EXPECT_TRUE(result.reason == StopReason::found || result.reason == StopReason::check_limit);
 
     fixtures::BlockStrategy sequential({fixtures::bytes("a"), expected, fixtures::bytes("c")});
     const auto boundary =
         CpuExecutor::run(algorithm, target, sequential, {.max_checks = 2, .time_limit = {}});
-    CHECK(boundary.reason == StopReason::found);
-    CHECK(boundary.candidate == expected);
-    CHECK(boundary.checks == 2);
+    EXPECT_EQ(boundary.reason, StopReason::found);
+    EXPECT_EQ(boundary.candidate, expected);
+    EXPECT_EQ(boundary.checks, 2);
 }
 
-void zero_limits_do_no_work() {
+TEST(CpuExecutorTest, ZeroLimitsDoNoWork) {
     struct NeverReadStrategy {
         using work_type = fixtures::CounterStrategy::work_type;
         std::optional<work_type> next_work() {
@@ -142,15 +145,15 @@ void zero_limits_do_no_work() {
     } source;
     const auto count = CpuExecutor::run(fixtures::TestAlgorithm{}, fixtures::absent_target(),
                                         source, {.max_checks = 0, .time_limit = {}});
-    CHECK(count.reason == StopReason::check_limit);
-    CHECK(count.checks == 0);
+    EXPECT_EQ(count.reason, StopReason::check_limit);
+    EXPECT_EQ(count.checks, 0);
     const auto time = CpuExecutor::run(fixtures::TestAlgorithm{}, fixtures::absent_target(), source,
                                        {.max_checks = {}, .time_limit = 0ns}, {.threads = 4});
-    CHECK(time.reason == StopReason::time_limit);
-    CHECK(time.checks == 0);
+    EXPECT_EQ(time.reason, StopReason::time_limit);
+    EXPECT_EQ(time.checks, 0);
 }
 
-void deadline_is_checked_during_work() {
+TEST(CpuExecutorTest, DeadlineIsCheckedDuringWork) {
     struct SlowAlgorithm : fixtures::TestAlgorithm {
         digest_type hash(pwbench::CandidateView candidate, const target_type& target) const {
             std::this_thread::sleep_for(10ms);
@@ -161,27 +164,27 @@ void deadline_is_checked_during_work() {
     const auto result =
         CpuExecutor::run(algorithm, fixtures::absent_target(), strategy,
                          {.max_checks = {}, .time_limit = 1ms}, {.threads = 1, .poll_interval = 1});
-    CHECK(result.reason == StopReason::time_limit);
-    CHECK(result.checks <= 1);
-    CHECK(result.elapsed >= 1ms);
+    EXPECT_EQ(result.reason, StopReason::time_limit);
+    EXPECT_LE(result.checks, 1U);
+    EXPECT_GE(result.elapsed, 1ms);
 }
 
-void rejects_invalid_options() {
+TEST(CpuExecutorTest, RejectsInvalidOptions) {
     fixtures::CounterStrategy strategy(1);
     const auto threads = CpuExecutor::run(fixtures::TestAlgorithm{}, fixtures::absent_target(),
                                           strategy, {}, {.threads = 0});
-    CHECK(threads.reason == StopReason::error);
-    CHECK(!threads.error.empty());
+    EXPECT_EQ(threads.reason, StopReason::error);
+    EXPECT_FALSE(threads.error.empty());
     const auto interval = CpuExecutor::run(fixtures::TestAlgorithm{}, fixtures::absent_target(),
                                            strategy, {}, {.threads = 1, .poll_interval = 0});
-    CHECK(interval.reason == StopReason::error);
+    EXPECT_EQ(interval.reason, StopReason::error);
     const auto duration = CpuExecutor::run(fixtures::TestAlgorithm{}, fixtures::absent_target(),
                                            strategy, {.max_checks = {}, .time_limit = -1ns});
-    CHECK(duration.reason == StopReason::error);
-    CHECK(duration.checks == 0);
+    EXPECT_EQ(duration.reason, StopReason::error);
+    EXPECT_EQ(duration.checks, 0);
 }
 
-void reports_algorithm_failure() {
+TEST(CpuExecutorTest, ReportsAlgorithmFailure) {
     struct ThrowingAlgorithm : fixtures::TestAlgorithm {
         digest_type hash(pwbench::CandidateView, const target_type&) const {
             throw std::runtime_error("test hash failure");
@@ -190,13 +193,13 @@ void reports_algorithm_failure() {
     fixtures::CounterStrategy strategy(1'000);
     const auto result =
         CpuExecutor::run(algorithm, fixtures::absent_target(), strategy, {}, {.threads = 4});
-    CHECK(result.reason == StopReason::error);
-    CHECK(result.error == "test hash failure");
-    CHECK(result.checks == 0);
-    CHECK(!result.candidate);
+    EXPECT_EQ(result.reason, StopReason::error);
+    EXPECT_EQ(result.error, "test hash failure");
+    EXPECT_EQ(result.checks, 0);
+    EXPECT_FALSE(result.candidate);
 }
 
-void preserves_checks_before_hash_failure() {
+TEST(CpuExecutorTest, PreservesChecksBeforeHashFailure) {
     struct Algorithm : fixtures::TestAlgorithm {
         digest_type hash(pwbench::CandidateView candidate, const target_type& target) const {
             if (candidate.data[0] == 2) {
@@ -207,12 +210,12 @@ void preserves_checks_before_hash_failure() {
     } algorithm;
     fixtures::CounterStrategy strategy(10);
     const auto result = CpuExecutor::run(algorithm, fixtures::absent_target(), strategy);
-    CHECK(result.reason == StopReason::error);
-    CHECK(result.error == "partial hash failure");
-    CHECK(result.checks == 2);
+    EXPECT_EQ(result.reason, StopReason::error);
+    EXPECT_EQ(result.error, "partial hash failure");
+    EXPECT_EQ(result.checks, 2);
 }
 
-void preserves_checks_before_comparison_failure() {
+TEST(CpuExecutorTest, PreservesChecksBeforeComparisonFailure) {
     struct Algorithm : fixtures::TestAlgorithm {
         bool matches(digest_type digest, const target_type& target) const {
             if (digest == 2) {
@@ -223,12 +226,12 @@ void preserves_checks_before_comparison_failure() {
     } algorithm;
     fixtures::CounterStrategy strategy(10);
     const auto result = CpuExecutor::run(algorithm, fixtures::absent_target(), strategy);
-    CHECK(result.reason == StopReason::error);
-    CHECK(result.error == "partial comparison failure");
-    CHECK(result.checks == 2);
+    EXPECT_EQ(result.reason, StopReason::error);
+    EXPECT_EQ(result.error, "partial comparison failure");
+    EXPECT_EQ(result.checks, 2);
 }
 
-void preserves_checks_before_source_failure() {
+TEST(CpuExecutorTest, PreservesChecksBeforeSourceFailure) {
     struct Strategy {
         using work_type = fixtures::CounterStrategy::work_type;
         bool consumed{};
@@ -242,12 +245,12 @@ void preserves_checks_before_source_failure() {
     } strategy;
     const auto result =
         CpuExecutor::run(fixtures::TestAlgorithm{}, fixtures::absent_target(), strategy);
-    CHECK(result.reason == StopReason::error);
-    CHECK(result.error == "partial source failure");
-    CHECK(result.checks == 2);
+    EXPECT_EQ(result.reason, StopReason::error);
+    EXPECT_EQ(result.error, "partial source failure");
+    EXPECT_EQ(result.checks, 2);
 }
 
-void failure_takes_precedence_over_concurrent_match() {
+TEST(CpuExecutorTest, FailureTakesPrecedenceOverConcurrentMatch) {
     struct MixedAlgorithm : fixtures::TestAlgorithm {
         std::barrier<>* rendezvous;
         digest_type hash(pwbench::CandidateView candidate, const target_type& target) const {
@@ -262,13 +265,13 @@ void failure_takes_precedence_over_concurrent_match() {
     const MixedAlgorithm algorithm{{}, &rendezvous};
     fixtures::CounterStrategy strategy(2, 1);
     const auto result = CpuExecutor::run(algorithm, {1, 0}, strategy, {}, {.threads = 2});
-    CHECK(result.reason == StopReason::error);
-    CHECK(result.error == "concurrent failure");
-    CHECK(result.checks == 1);
-    CHECK(!result.candidate);
+    EXPECT_EQ(result.reason, StopReason::error);
+    EXPECT_EQ(result.error, "concurrent failure");
+    EXPECT_EQ(result.checks, 1);
+    EXPECT_FALSE(result.candidate);
 }
 
-void reports_source_and_work_failures() {
+TEST(CpuExecutorTest, ReportsSourceAndWorkFailures) {
     struct ThrowingSource {
         using work_type = fixtures::CounterStrategy::work_type;
         std::optional<work_type> next_work() {
@@ -277,8 +280,8 @@ void reports_source_and_work_failures() {
     } source;
     const auto source_result = CpuExecutor::run(
         fixtures::TestAlgorithm{}, fixtures::absent_target(), source, {}, {.threads = 4});
-    CHECK(source_result.reason == StopReason::error);
-    CHECK(source_result.error == "test source failure");
+    EXPECT_EQ(source_result.reason, StopReason::error);
+    EXPECT_EQ(source_result.error, "test source failure");
 
     struct ThrowingWorkSource {
         struct work_type {
@@ -292,11 +295,11 @@ void reports_source_and_work_failures() {
     } work_source;
     const auto work_result = CpuExecutor::run(fixtures::TestAlgorithm{}, fixtures::absent_target(),
                                               work_source, {}, {.threads = 4});
-    CHECK(work_result.reason == StopReason::error);
-    CHECK(work_result.error == "unknown execution error");
+    EXPECT_EQ(work_result.reason, StopReason::error);
+    EXPECT_EQ(work_result.error, "unknown execution error");
 }
 
-void rejects_invalid_candidate_view() {
+TEST(CpuExecutorTest, RejectsInvalidCandidateView) {
     struct InvalidViewSource {
         struct work_type {
             std::optional<pwbench::CandidateView> next_candidate() {
@@ -309,12 +312,12 @@ void rejects_invalid_candidate_view() {
     } strategy;
     const auto result =
         CpuExecutor::run(fixtures::TestAlgorithm{}, fixtures::absent_target(), strategy);
-    CHECK(result.reason == StopReason::error);
-    CHECK(result.error == "nonempty candidate has null data");
-    CHECK(result.checks == 0);
+    EXPECT_EQ(result.reason, StopReason::error);
+    EXPECT_EQ(result.error, "nonempty candidate has null data");
+    EXPECT_EQ(result.checks, 0);
 }
 
-void supports_move_only_work() {
+TEST(CpuExecutorTest, SupportsMoveOnlyWork) {
     struct MoveOnlyStrategy {
         struct work_type {
             std::unique_ptr<pwbench::Byte> byte{std::make_unique<pwbench::Byte>(9)};
@@ -338,30 +341,8 @@ void supports_move_only_work() {
     } strategy;
     const auto result = CpuExecutor::run(fixtures::TestAlgorithm{}, fixtures::absent_target(),
                                          strategy, {}, {.threads = 2});
-    CHECK(result.reason == StopReason::exhausted);
-    CHECK(result.checks == 1);
+    EXPECT_EQ(result.reason, StopReason::exhausted);
+    EXPECT_EQ(result.checks, 1);
 }
 
-}
-
-int main() {
-    return run_tests({
-        {"match and result ownership", finds_candidate_and_owns_result},
-        {"empty and binary candidates", supports_empty_and_binary_candidates},
-        {"parallel streaming and exact counts", exhausts_stream_across_workers},
-        {"empty source and work", handles_empty_source_and_empty_work},
-        {"exact check limit", enforces_exact_check_limit},
-        {"match at check limit", match_at_check_limit_is_success},
-        {"zero limits", zero_limits_do_no_work},
-        {"deadline polling", deadline_is_checked_during_work},
-        {"invalid options", rejects_invalid_options},
-        {"algorithm failure", reports_algorithm_failure},
-        {"partial progress before hash failure", preserves_checks_before_hash_failure},
-        {"partial progress before comparison failure", preserves_checks_before_comparison_failure},
-        {"partial progress before source failure", preserves_checks_before_source_failure},
-        {"error precedence over match", failure_takes_precedence_over_concurrent_match},
-        {"source and work failures", reports_source_and_work_failures},
-        {"invalid candidate view", rejects_invalid_candidate_view},
-        {"move-only work", supports_move_only_work},
-    });
 }

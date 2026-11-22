@@ -1,5 +1,6 @@
 #include "fixtures.hpp"
-#include "test_support.hpp"
+
+#include <gtest/gtest.h>
 
 #include <memory>
 #include <type_traits>
@@ -33,28 +34,21 @@ static_assert(!pwbench::CpuWork<WrongWork>);
 static_assert(pwbench::CpuWork<MoveOnlyWork>);
 static_assert(!pwbench::CpuStrategy<WrongStrategy>);
 
-void target_is_algorithm_owned() {
+TEST(ContractsTest, TargetIsAlgorithmOwned) {
     const fixtures::TestAlgorithm algorithm;
     const auto candidate = fixtures::bytes("abc");
     const auto first = algorithm.make_target(fixtures::view(candidate), 5);
     const auto second = algorithm.make_target(fixtures::view(candidate), 11);
-    CHECK(first.digest != second.digest);
-    CHECK(algorithm.matches(algorithm.hash(fixtures::view(candidate), first), first));
-    CHECK(!algorithm.matches(algorithm.hash(fixtures::view(candidate), first), second));
+    EXPECT_NE(first.digest, second.digest);
+    EXPECT_TRUE(algorithm.matches(algorithm.hash(fixtures::view(candidate), first), first));
+    EXPECT_FALSE(algorithm.matches(algorithm.hash(fixtures::view(candidate), first), second));
 }
 
-void labels_are_stable() {
-    CHECK(pwbench::to_string(pwbench::Backend::cpu) == "cpu");
-    CHECK(pwbench::to_string(pwbench::Backend::cuda) == "cuda");
-    CHECK(pwbench::to_string(pwbench::StopReason::found) == "found");
-    CHECK(pwbench::to_string(pwbench::StopReason::error) == "error");
+TEST(ContractsTest, LabelsAreStable) {
+    EXPECT_EQ(pwbench::to_string(pwbench::Backend::cpu), "cpu");
+    EXPECT_EQ(pwbench::to_string(pwbench::Backend::cuda), "cuda");
+    EXPECT_EQ(pwbench::to_string(pwbench::StopReason::found), "found");
+    EXPECT_EQ(pwbench::to_string(pwbench::StopReason::error), "error");
 }
 
-}
-
-int main() {
-    return run_tests({
-        {"algorithm-owned target", target_is_algorithm_owned},
-        {"stable labels", labels_are_stable},
-    });
 }

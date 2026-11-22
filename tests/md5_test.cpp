@@ -4,7 +4,8 @@
 
 #include "fixtures.hpp"
 #include "temp_directory.hpp"
-#include "test_support.hpp"
+
+#include <gtest/gtest.h>
 
 #include <array>
 #include <string_view>
@@ -20,7 +21,7 @@ std::string digest(std::string_view input) {
     return pwbench::Md5::hex(algorithm.make_target(candidate).digest);
 }
 
-void matches_rfc_1321_vectors() {
+TEST(Md5Test, MatchesRfc1321Vectors) {
     const std::pair<std::string_view, std::string_view> vectors[]{
         {"", "d41d8cd98f00b204e9800998ecf8427e"},
         {"a", "0cc175b9c0f1b6a831c399e269772661"},
@@ -33,11 +34,11 @@ void matches_rfc_1321_vectors() {
          "57edf4a22be3c955ac49da2e2107b67a"},
     };
     for (const auto& [input, expected] : vectors) {
-        CHECK(digest(input) == expected);
+        EXPECT_EQ(digest(input), expected) << "Input: " << input;
     }
 }
 
-void handles_padding_boundaries() {
+TEST(Md5Test, HandlesPaddingBoundaries) {
     const std::pair<std::size_t, std::string_view> vectors[]{
         {55, "ef1772b6dff9a122358552954ad0df65"},  {56, "3b0c8ac703f828b04c6c197006d17218"},
         {63, "b06521f39153d618550606be297466d5"},  {64, "014842d480b571495a4a0363793f7367"},
@@ -46,15 +47,15 @@ void handles_padding_boundaries() {
         {128, "e510683b3f5ffe4093d021808bc6ff70"},
     };
     for (const auto& [length, expected] : vectors) {
-        CHECK(digest(std::string(length, 'a')) == expected);
+        EXPECT_EQ(digest(std::string(length, 'a')), expected) << "Input length: " << length;
     }
 }
 
-void hashes_large_input() {
-    CHECK(digest(std::string(1'000'000, 'a')) == "7707d6ae4e027c70eea2a935c2296f21");
+TEST(Md5Test, HashesLargeInput) {
+    EXPECT_EQ(digest(std::string(1'000'000, 'a')), "7707d6ae4e027c70eea2a935c2296f21");
 }
 
-void handles_binary_and_unaligned_input() {
+TEST(Md5Test, HandlesBinaryAndUnalignedInput) {
     std::array<pwbench::Byte, 257> bytes{};
     for (std::size_t index = 0; index < 256; ++index) {
         bytes[index + 1] = static_cast<pwbench::Byte>(index);
@@ -62,22 +63,22 @@ void handles_binary_and_unaligned_input() {
     const pwbench::Md5 algorithm;
     const pwbench::CandidateView input{bytes.data() + 1, 256};
     const auto target = algorithm.make_target(input);
-    CHECK(pwbench::Md5::hex(target.digest) == "e2c865db4162bed963bfaa9ef6ac18f0");
-    CHECK(algorithm.matches(algorithm.hash(input, target), target));
+    EXPECT_EQ(pwbench::Md5::hex(target.digest), "e2c865db4162bed963bfaa9ef6ac18f0");
+    EXPECT_TRUE(algorithm.matches(algorithm.hash(input, target), target));
     auto wrong = target;
     wrong.digest[0] ^= 1;
-    CHECK(!algorithm.matches(algorithm.hash(input, wrong), wrong));
+    EXPECT_FALSE(algorithm.matches(algorithm.hash(input, wrong), wrong));
 }
 
-void validates_input_views() {
+TEST(Md5Test, ValidatesInputViews) {
     const pwbench::Md5 algorithm;
-    CHECK(pwbench::Md5::hex(algorithm.make_target({nullptr, 0}).digest) ==
-          "d41d8cd98f00b204e9800998ecf8427e");
-    check_throws<std::invalid_argument>([&] { algorithm.make_target({nullptr, 1}); });
-    check_throws<std::invalid_argument>([&] { algorithm.hash({nullptr, 1}, {}); });
+    EXPECT_EQ(pwbench::Md5::hex(algorithm.make_target({nullptr, 0}).digest),
+              "d41d8cd98f00b204e9800998ecf8427e");
+    EXPECT_THROW(algorithm.make_target({nullptr, 1}), std::invalid_argument);
+    EXPECT_THROW(algorithm.hash({nullptr, 1}, {}), std::invalid_argument);
 }
 
-void finds_a_word_through_the_shared_pipeline() {
+TEST(Md5Test, FindsAWordThroughTheSharedPipeline) {
     TempDirectory directory;
     const auto path = directory.write("words.txt", "alpha\nbeta\ngamma\n");
     const pwbench::Md5 algorithm;
@@ -87,14 +88,16 @@ void finds_a_word_through_the_shared_pipeline() {
         pwbench::WordlistStrategy strategy(path, 2);
         const auto result =
             pwbench::CpuExecutor::run(algorithm, target, strategy, {}, {.threads = threads});
-        CHECK(result.reason == pwbench::StopReason::found);
-        CHECK(result.candidate == password);
-        CHECK(result.checks >= 1 && result.checks <= 3);
-        CHECK(algorithm.matches(algorithm.hash(fixtures::view(*result.candidate), target), target));
+        EXPECT_EQ(result.reason, pwbench::StopReason::found);
+        ASSERT_EQ(result.candidate, password);
+        EXPECT_GE(result.checks, 1U);
+        EXPECT_LE(result.checks, 3U);
+        EXPECT_TRUE(
+            algorithm.matches(algorithm.hash(fixtures::view(*result.candidate), target), target));
     }
 }
 
-void reports_an_absent_password() {
+TEST(Md5Test, ReportsAnAbsentPassword) {
     TempDirectory directory;
     const auto path = directory.write("words.txt", "alpha\nbeta\ngamma\n");
     const pwbench::Md5 algorithm;
@@ -102,21 +105,9 @@ void reports_an_absent_password() {
     const auto target = algorithm.make_target(fixtures::view(password));
     pwbench::WordlistStrategy strategy(path, 2);
     const auto result = pwbench::CpuExecutor::run(algorithm, target, strategy, {}, {.threads = 4});
-    CHECK(result.reason == pwbench::StopReason::exhausted);
-    CHECK(result.checks == 3);
-    CHECK(!result.candidate);
+    EXPECT_EQ(result.reason, pwbench::StopReason::exhausted);
+    EXPECT_EQ(result.checks, 3);
+    EXPECT_FALSE(result.candidate);
 }
 
-}
-
-int main() {
-    return run_tests({
-        {"RFC 1321 vectors", matches_rfc_1321_vectors},
-        {"MD5 padding boundaries", handles_padding_boundaries},
-        {"million-byte input", hashes_large_input},
-        {"binary and unaligned input", handles_binary_and_unaligned_input},
-        {"MD5 input validation", validates_input_views},
-        {"MD5 wordlist pipeline", finds_a_word_through_the_shared_pipeline},
-        {"absent MD5 password", reports_an_absent_password},
-    });
 }

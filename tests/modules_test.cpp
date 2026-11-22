@@ -4,7 +4,8 @@
 
 #include "module_fixtures.hpp"
 #include "temp_directory.hpp"
-#include "test_support.hpp"
+
+#include <gtest/gtest.h>
 
 #include <algorithm>
 #include <atomic>
@@ -15,7 +16,7 @@ namespace {
 static_assert(pwbench::Argon2idModule::poll_interval == 1);
 static_assert(pwbench::Md5Module::poll_interval == 256);
 
-void real_modules_work_with_new_algorithm_and_strategy() {
+TEST(ModulesTest, RealModulesWorkWithNewAlgorithmAndStrategy) {
     TempDirectory directory;
     const auto path = directory.write("words.txt", "alpha\nbeta\n");
     const auto password = fixtures::bytes("beta");
@@ -24,36 +25,36 @@ void real_modules_work_with_new_algorithm_and_strategy() {
     pwbench::register_cpu<fixtures::LengthModule, pwbench::WordlistModule>(registry);
     const auto md5 = registry.prepare({"md5", "test-blocks", pwbench::Backend::cpu},
                                       {fixtures::view(password), {}});
-    CHECK(md5.target_hash == "987bcab01b929eb2c07877b224215c92");
-    CHECK(md5.run().candidate == password);
+    EXPECT_EQ(md5.target_hash, "987bcab01b929eb2c07877b224215c92");
+    EXPECT_EQ(md5.run().candidate, password);
     const pwbench::Selection length{"test-length", "wordlist", pwbench::Backend::cpu};
     const auto& options = registry.options(length);
     const auto wordlist =
         std::ranges::find(options, std::string("wordlist"), &pwbench::OptionSpec::name);
-    CHECK(wordlist != options.end());
-    CHECK(wordlist->default_value.has_value());
-    CHECK(std::filesystem::path(*wordlist->default_value).is_absolute());
-    CHECK(std::filesystem::path(*wordlist->default_value).filename() ==
-          "Most-Popular-Letter-Passes.txt");
+    ASSERT_NE(wordlist, options.end());
+    ASSERT_TRUE(wordlist->default_value.has_value());
+    EXPECT_TRUE(std::filesystem::path(*wordlist->default_value).is_absolute());
+    EXPECT_EQ(std::filesystem::path(*wordlist->default_value).filename(),
+              "Most-Popular-Letter-Passes.txt");
     const auto prepared = registry.prepare(
         length, {fixtures::view(password), {{"wordlist", path.string()}, {"factor", "4"}}});
-    CHECK(prepared.target_hash == "16");
-    CHECK(prepared.run().candidate == password);
-    CHECK(prepared.run().checks == 2);
+    EXPECT_EQ(prepared.target_hash, "16");
+    EXPECT_EQ(prepared.run().candidate, password);
+    EXPECT_EQ(prepared.run().checks, 2);
 }
 
-void source_creation_errors_are_reported_after_preparation() {
+TEST(ModulesTest, SourceCreationErrorsAreReportedAfterPreparation) {
     TempDirectory directory;
     pwbench::Registry registry;
     pwbench::register_cpu<pwbench::Md5Module, pwbench::WordlistModule>(registry);
     const auto prepared =
         registry.prepare({"md5", "wordlist", pwbench::Backend::cpu},
                          {{}, {{"wordlist", (directory.path() / "missing.txt").string()}}});
-    CHECK(prepared.target_hash == "d41d8cd98f00b204e9800998ecf8427e");
+    EXPECT_EQ(prepared.target_hash, "d41d8cd98f00b204e9800998ecf8427e");
     const auto result = prepared.run();
-    CHECK(result.reason == pwbench::StopReason::error);
-    CHECK(result.error.find("cannot open wordlist") != std::string::npos);
-    CHECK(result.checks == 0);
+    EXPECT_EQ(result.reason, pwbench::StopReason::error);
+    EXPECT_NE(result.error.find("cannot open wordlist"), std::string::npos);
+    EXPECT_EQ(result.checks, 0);
 }
 
 struct StopState {
@@ -160,7 +161,7 @@ struct StopStrategyModule {
     }
 };
 
-void module_poll_interval_stops_other_workers_before_next_hash() {
+TEST(ModulesTest, ModulePollIntervalStopsOtherWorkersBeforeNextHash) {
     stop_state = std::make_shared<StopState>();
     pwbench::Registry registry;
     pwbench::register_cpu<StopModule, StopStrategyModule>(registry);
@@ -168,17 +169,9 @@ void module_poll_interval_stops_other_workers_before_next_hash() {
                                            {{}, {{"threads", "2"}}});
     stop_state.reset();
     const auto result = prepared.run();
-    CHECK(result.reason == pwbench::StopReason::found);
-    CHECK(result.candidate == pwbench::Candidate{1});
-    CHECK(result.checks == 2);
+    EXPECT_EQ(result.reason, pwbench::StopReason::found);
+    EXPECT_EQ(result.candidate, pwbench::Candidate{1});
+    EXPECT_EQ(result.checks, 2);
 }
 
-}
-
-int main() {
-    return run_tests({
-        {"real modules with new combinations", real_modules_work_with_new_algorithm_and_strategy},
-        {"strategy creation errors", source_creation_errors_are_reported_after_preparation},
-        {"module polling policy", module_poll_interval_stops_other_workers_before_next_hash},
-    });
 }
