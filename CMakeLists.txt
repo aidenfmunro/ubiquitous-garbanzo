@@ -1,17 +1,15 @@
 cmake_minimum_required(VERSION 3.24)
 project(ubiquitous_garbanzo VERSION 0.1.0 LANGUAGES CXX)
 
-set(CMAKE_CXX_EXTENSIONS OFF)
+list(APPEND CMAKE_MODULE_PATH "${PROJECT_SOURCE_DIR}/cmake")
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 
 option(PWBENCH_ENABLE_CUDA "Enable the toolchain for future CUDA modules" OFF)
 if(PWBENCH_ENABLE_CUDA)
     enable_language(CUDA)
-    set(CMAKE_CUDA_STANDARD 20)
-    set(CMAKE_CUDA_STANDARD_REQUIRED ON)
-    set(CMAKE_CUDA_EXTENSIONS OFF)
 endif()
 
+include(cmake/CompilerOptions.cmake)
 find_package(Threads REQUIRED)
 
 add_library(pwbench_core
@@ -22,20 +20,22 @@ add_library(pwbench_core
 add_library(pwbench::core ALIAS pwbench_core)
 
 target_compile_features(pwbench_core PUBLIC cxx_std_20)
-target_compile_options(pwbench_core PRIVATE -Wall -Wextra -Wpedantic)
 target_include_directories(pwbench_core PUBLIC "${PROJECT_SOURCE_DIR}/include")
-target_link_libraries(pwbench_core PUBLIC Threads::Threads)
+target_link_libraries(pwbench_core
+    PUBLIC
+        Threads::Threads
+    PRIVATE
+        pwbench::options
+)
 
 include(cmake/Wordlist.cmake)
 
-include(CTest)
 add_subdirectory(src/md5)
-option(PWBENCH_ENABLE_ARGON2ID "Build the CPU Argon2id experiment with libargon2" OFF)
-if(PWBENCH_ENABLE_ARGON2ID)
-    add_subdirectory(src/argon2id)
-endif()
+add_subdirectory(src/argon2id)
+add_subdirectory(src/modules)
 add_subdirectory(src/app)
 
+include(CTest)
 if(BUILD_TESTING)
     add_subdirectory(tests)
 endif()

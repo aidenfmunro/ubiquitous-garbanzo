@@ -1,158 +1,183 @@
-#include "pwbench/cpu_executor.hpp"
 #include "pwbench/registry.hpp"
 
-#include "fixtures.hpp"
+#include "module_fixtures.hpp"
 #include "test_support.hpp"
 
 namespace {
 
-const pwbench::Selection selection{
-    std::string(fixtures::TestAlgorithm::id),
-    std::string(fixtures::BlockStrategy::id),
-    pwbench::Backend::cpu,
-};
+const pwbench::Selection selection{"test-sum", "test-blocks", pwbench::Backend::cpu};
 
-void register_fixture(pwbench::Registry& registry) {
-    const fixtures::TestAlgorithm algorithm;
-    const auto original = fixtures::bytes("beta");
-    const auto target = algorithm.make_target(fixtures::view(original));
-    registry.add(selection, [algorithm, target](const pwbench::RunLimits& limits) {
-        fixtures::BlockStrategy strategy(
-            {fixtures::bytes("alpha"), fixtures::bytes("beta"), fixtures::bytes("gamma")});
-        return pwbench::CpuExecutor::run(algorithm, target, strategy, limits);
-    });
+pwbench::PreparedExperiment empty_experiment(const pwbench::ExperimentRequest&) {
+    return {"test", [](const pwbench::RunLimits&) { return pwbench::RunResult{}; }};
 }
 
-void registered_pipeline_is_repeatable() {
-    pwbench::Registry registry;
-    register_fixture(registry);
-    CHECK(registry.supports(selection));
-    CHECK(registry.selections() == std::vector<pwbench::Selection>{selection});
+void prepares_once_and_owns_repeatable_execution() {
+    pwbench::PreparedExperiment prepared;
+    fixtures::SumModule::preparations = 0;
+    {
+        auto registry = fixtures::module_registry();
+        auto password = fixtures::bytes("beta");
+        const pwbench::ExperimentRequest request{fixtures::view(password), {{"salt", "11"}}};
+        prepared = registry.prepare(selection, request);
+        CHECK(registry.supports(selection));
+        CHECK(registry.selections().size() == 4);
+        CHECK(fixtures::SumModule::preparations == 1);
+        password.clear();
+    }
+    CHECK(prepared.target_hash == "423");
     for (int repeat = 0; repeat < 3; ++repeat) {
-        const auto result = registry.run(selection);
+        const auto result = prepared.run();
         CHECK(result.reason == pwbench::StopReason::found);
         CHECK(result.candidate == fixtures::bytes("beta"));
         CHECK(result.checks == 2);
     }
-    const auto limited = registry.run(selection, {.max_checks = 1, .time_limit = {}});
+    CHECK(fixtures::SumModule::preparations == 1);
+    const auto limited = prepared.run({.max_checks = 1, .time_limit = {}});
     CHECK(limited.reason == pwbench::StopReason::check_limit);
     CHECK(limited.checks == 1);
 }
 
-void rejects_unsupported_combination_without_fallback() {
-    pwbench::Registry registry;
-    int calls = 0;
-    registry.add(selection, [&](const pwbench::RunLimits&) {
-        ++calls;
-        return pwbench::RunResult{};
-    });
-    auto cuda = selection;
-    cuda.backend = pwbench::Backend::cuda;
-    CHECK(!registry.supports(cuda));
-    const auto result = registry.run(cuda);
-    CHECK(result.reason == pwbench::StopReason::error);
-    CHECK(result.error == "unsupported combination: algorithm=test-sum, "
-                          "strategy=test-blocks, backend=cuda");
-    auto other_strategy = selection;
-    other_strategy.strategy = "not-registered";
-    CHECK(registry.run(other_strategy).reason == pwbench::StopReason::error);
-    auto other_algorithm = selection;
-    other_algorithm.algorithm = "not-registered";
-    CHECK(registry.run(other_algorithm).reason == pwbench::StopReason::error);
-    CHECK(calls == 0);
+void rejects_unsupported_combinations_before_preparation() {
+    const auto registry = fixtures::module_registry();
+    fixtures::SumModule::preparations = 0;
+    for (const auto& missing :
+         std::vector<pwbench::Selection>{{"test-sum", "test-blocks", pwbench::Backend::cuda},
+                                         {"missing", "test-blocks", pwbench::Backend::cpu},
+                                         {"test-sum", "missing", pwbench::Backend::cpu}}) {
+        CHECK(!registry.supports(missing));
+        check_throws<std::invalid_argument>(
+            [&] { static_cast<void>(registry.prepare(missing, {})); });
+        check_throws<std::invalid_argument>([&] { static_cast<void>(registry.options(missing)); });
+    }
+    CHECK(fixtures::SumModule::preparations == 0);
 }
 
 void rejects_invalid_registrations() {
     pwbench::Registry registry;
-    const pwbench::Runner runner = [](const pwbench::RunLimits&) { return pwbench::RunResult{}; };
-    registry.add(selection, runner);
-    check_throws<std::invalid_argument>([&] { registry.add(selection, runner); });
+    registry.add(selection, {}, empty_experiment);
+    check_throws<std::invalid_argument>([&] { registry.add(selection, {}, empty_experiment); });
     check_throws<std::invalid_argument>(
-        [&] { registry.add({"", "strategy", pwbench::Backend::cpu}, runner); });
+        [&] { registry.add({"", "s", pwbench::Backend::cpu}, {}, empty_experiment); });
     check_throws<std::invalid_argument>(
-        [&] { registry.add({"algorithm", "", pwbench::Backend::cpu}, runner); });
+        [&] { registry.add({"a", "", pwbench::Backend::cpu}, {}, empty_experiment); });
     check_throws<std::invalid_argument>(
-        [&] { registry.add({"algorithm", "strategy", static_cast<pwbench::Backend>(9)}, runner); });
+        [&] { registry.add({"a", "s", static_cast<pwbench::Backend>(9)}, {}, empty_experiment); });
     check_throws<std::invalid_argument>(
-        [&] { registry.add({"algorithm", "strategy", pwbench::Backend::cpu}, {}); });
+        [&] { registry.add({"a", "s", pwbench::Backend::cpu}, {}, {}); });
 }
 
-void reports_preparation_errors() {
+void rejects_parameter_collisions_and_invalid_names() {
+    const pwbench::Selection other{"other", "other", pwbench::Backend::cpu};
     pwbench::Registry registry;
-    registry.add(selection, [](const pwbench::RunLimits&) -> pwbench::RunResult {
-        throw std::runtime_error("cannot prepare test data");
+    for (const auto name : {"password", "algorithm", "strategy", "backend", "help", "", "bad name",
+                            "--wrong", "name=value"}) {
+        check_throws<std::invalid_argument>(
+            [&] { registry.add(other, {{name, "N", "test", "1"}}, empty_experiment); });
+    }
+    check_throws<std::invalid_argument>([&] {
+        registry.add(other, {{"cost", "N", "test", "1"}, {"cost", "N", "duplicate", "2"}},
+                     empty_experiment);
     });
-    const auto result = registry.run(selection);
-    CHECK(result.reason == pwbench::StopReason::error);
-    CHECK(result.error == "cannot prepare test data");
-    CHECK(result.checks == 0);
-
-    registry.add({"other", "other", pwbench::Backend::cpu},
-                 [](const pwbench::RunLimits&) -> pwbench::RunResult { throw 42; });
-    CHECK(registry.run({"other", "other", pwbench::Backend::cpu}).error ==
-          "unknown preparation error");
-}
-
-void algorithms_and_strategies_are_independent() {
-    pwbench::Registry registry;
-    register_fixture(registry);
-    const pwbench::Selection counter{
-        std::string(fixtures::TestAlgorithm::id),
-        std::string(fixtures::CounterStrategy::id),
-        pwbench::Backend::cpu,
-    };
-    registry.add(counter, [](const pwbench::RunLimits& limits) {
-        fixtures::CounterStrategy strategy(10);
-        return pwbench::CpuExecutor::run(fixtures::TestAlgorithm{}, fixtures::absent_target(),
-                                         strategy, limits);
-    });
-    CHECK(registry.selections().size() == 2);
-    CHECK(registry.run(selection).reason == pwbench::StopReason::found);
-    CHECK(registry.run(counter).reason == pwbench::StopReason::exhausted);
-    CHECK(registry.run(counter).checks == 10);
-}
-
-void new_algorithm_can_define_a_different_target() {
-    struct LengthAlgorithm {
-        struct digest_type {
-            std::size_t length;
-            bool operator==(const digest_type&) const = default;
-        };
-        struct target_type {
-            digest_type wanted;
-        };
-        digest_type hash(pwbench::CandidateView candidate, const target_type&) const {
-            return {candidate.size};
-        }
-        bool matches(const digest_type& digest, const target_type& target) const {
-            return digest == target.wanted;
+    check_throws<std::invalid_argument>(
+        [&] { registry.add(other, {{"cost", "", "test", "1"}}, empty_experiment); });
+    struct CollisionModule : fixtures::BlocksModule {
+        static std::vector<pwbench::OptionSpec> options() {
+            return {{"salt", "N", "Conflicts with algorithm", "1"}};
         }
     };
-    static_assert(pwbench::CpuAlgorithm<LengthAlgorithm>);
+    check_throws<std::invalid_argument>(
+        [&] { pwbench::register_cpu<fixtures::SumModule, CollisionModule>(registry); });
+    CHECK(registry.selections().empty());
+}
+
+void resolves_defaults_required_values_and_empty_values() {
     pwbench::Registry registry;
-    register_fixture(registry);
-    const pwbench::Selection length{"test-length", selection.strategy, pwbench::Backend::cpu};
-    registry.add(length, [](const pwbench::RunLimits& limits) {
-        fixtures::BlockStrategy strategy({fixtures::bytes("alpha"), fixtures::bytes("beta")});
-        return pwbench::CpuExecutor::run(LengthAlgorithm{}, {{4}}, strategy, limits);
+    std::size_t calls = 0;
+    registry.add(selection, {{"cost", "N", "test", "3"}, {"text", "TEXT", "required", {}}},
+                 [&](const pwbench::ExperimentRequest& request) {
+                     ++calls;
+                     CHECK(pwbench::parameter(request.parameters, "cost") == "3");
+                     CHECK(pwbench::parameter(request.parameters, "text").empty());
+                     return empty_experiment(request);
+                 });
+    CHECK(registry.options(selection).size() == 2);
+    check_throws<std::invalid_argument>(
+        [&] { static_cast<void>(registry.prepare(selection, {})); });
+    check_throws<std::invalid_argument>([&] {
+        static_cast<void>(registry.prepare(selection, {{}, {{"text", ""}, {"unknown", "1"}}}));
     });
-    CHECK(registry.selections().size() == 2);
-    CHECK(registry.run(selection).reason == pwbench::StopReason::found);
-    const auto result = registry.run(length);
-    CHECK(result.reason == pwbench::StopReason::found);
-    CHECK(result.candidate == fixtures::bytes("beta"));
+    check_throws<std::invalid_argument>(
+        [&] { static_cast<void>(registry.prepare(selection, {{nullptr, 1}, {{"text", ""}}})); });
+    CHECK(calls == 0);
+    static_cast<void>(registry.prepare(selection, {{}, {{"text", ""}}}));
+    CHECK(calls == 1);
+}
+
+void positive_parameters_reject_invalid_signed_and_unsigned_values() {
+    CHECK(pwbench::positive_parameter<int>({{"cost", "12"}}, "cost") == 12);
+    CHECK(pwbench::positive_parameter<std::uint32_t>({{"cost", "4294967295"}}, "cost") ==
+          4294967295U);
+    for (const auto value : {"", "0", "-1", "12x", "+1", " 1", "999999999999999999999"}) {
+        check_throws<std::invalid_argument>(
+            [&] { pwbench::positive_parameter<int>({{"cost", value}}, "cost"); });
+        check_throws<std::invalid_argument>(
+            [&] { pwbench::positive_parameter<std::uint32_t>({{"cost", value}}, "cost"); });
+    }
+}
+
+void reports_preparation_and_execution_errors() {
+    pwbench::Registry registry;
+    registry.add(selection, {},
+                 [](const pwbench::ExperimentRequest&) -> pwbench::PreparedExperiment {
+                     throw std::runtime_error("target preparation failed");
+                 });
+    check_throws<std::runtime_error>([&] { static_cast<void>(registry.prepare(selection, {})); });
+    registry.add({"empty", "other", pwbench::Backend::cpu}, {},
+                 [](const pwbench::ExperimentRequest&) { return pwbench::PreparedExperiment{}; });
+    check_throws<std::invalid_argument>([&] {
+        static_cast<void>(registry.prepare({"empty", "other", pwbench::Backend::cpu}, {}));
+    });
+    pwbench::PreparedExperiment prepared{"test",
+                                         [](const pwbench::RunLimits&) -> pwbench::RunResult {
+                                             throw std::runtime_error("source creation failed");
+                                         }};
+    CHECK(prepared.run().error == "source creation failed");
+    CHECK(prepared.run().checks == 0);
+    prepared.runner = [](const pwbench::RunLimits&) -> pwbench::RunResult { throw 42; };
+    CHECK(prepared.run().error == "unknown execution error");
+    prepared.runner = {};
+    CHECK(prepared.run().reason == pwbench::StopReason::error);
+}
+
+void supports_independent_modules_and_move_only_targets() {
+    const auto registry = fixtures::module_registry();
+    const auto password = fixtures::bytes("beta");
+    const pwbench::ExperimentRequest request{fixtures::view(password), {}};
+    const auto length = registry.prepare({"test-length", "test-blocks", pwbench::Backend::cpu},
+                                         {request.password, {{"factor", "3"}}});
+    CHECK(length.target_hash == "12");
+    CHECK(length.run().candidate == password);
+    const auto counter = registry.prepare({"test-length", "test-counter", pwbench::Backend::cpu},
+                                          {request.password, {{"count", "19"}}});
+    CHECK(counter.run().reason == pwbench::StopReason::exhausted);
+    CHECK(counter.run().checks == 19);
+    CHECK(registry.prepare(selection, request).run().candidate == password);
 }
 
 }
 
 int main() {
     return run_tests({
-        {"repeatable registered pipeline", registered_pipeline_is_repeatable},
-        {"unsupported combinations and no fallback",
-         rejects_unsupported_combination_without_fallback},
+        {"owned repeatable execution after preparation",
+         prepares_once_and_owns_repeatable_execution},
+        {"unsupported combinations", rejects_unsupported_combinations_before_preparation},
         {"invalid registrations", rejects_invalid_registrations},
-        {"preparation errors", reports_preparation_errors},
-        {"independent strategy extension", algorithms_and_strategies_are_independent},
-        {"independent algorithm extension", new_algorithm_can_define_a_different_target},
+        {"parameter collisions", rejects_parameter_collisions_and_invalid_names},
+        {"defaults and required parameters", resolves_defaults_required_values_and_empty_values},
+        {"positive signed and unsigned parameters",
+         positive_parameters_reject_invalid_signed_and_unsigned_values},
+        {"preparation and execution errors", reports_preparation_and_execution_errors},
+        {"independent modules and move-only targets",
+         supports_independent_modules_and_move_only_targets},
     });
 }

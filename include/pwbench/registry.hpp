@@ -1,6 +1,7 @@
 #ifndef PWBENCH_REGISTRY_HPP
 #define PWBENCH_REGISTRY_HPP
 
+#include "pwbench/parameters.hpp"
 #include "pwbench/types.hpp"
 
 #include <functional>
@@ -18,18 +19,38 @@ struct Selection {
 
 using Runner = std::function<RunResult(const RunLimits&)>;
 
+struct ExperimentRequest {
+    CandidateView password;
+    Parameters parameters;
+};
+
+struct PreparedExperiment {
+    std::string target_hash;
+    Runner runner;
+
+    RunResult run(const RunLimits& limits = {}) const;
+};
+
+using ExperimentFactory = std::function<PreparedExperiment(const ExperimentRequest&)>;
+
 class Registry {
 public:
-    void add(Selection selection, Runner runner);
+    void add(Selection selection, std::vector<OptionSpec> options, ExperimentFactory factory);
     [[nodiscard]] bool supports(const Selection& selection) const;
     [[nodiscard]] std::vector<Selection> selections() const;
-    [[nodiscard]] RunResult run(const Selection& selection, const RunLimits& limits = {}) const;
+    [[nodiscard]] const std::vector<OptionSpec>& options(const Selection& selection) const;
+    [[nodiscard]] PreparedExperiment prepare(const Selection& selection,
+                                             const ExperimentRequest& request) const;
 
 private:
     struct Entry {
         Selection selection;
-        Runner runner;
+        std::vector<OptionSpec> options;
+        ExperimentFactory factory;
     };
+
+    const Entry& find(const Selection& selection) const;
+
     std::vector<Entry> entries_;
 };
 
