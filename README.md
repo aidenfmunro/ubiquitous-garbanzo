@@ -14,9 +14,13 @@
 поддерживающей concepts и `std::jthread`, а также `libargon2` с заголовком `argon2.h`.
 Argon2id входит в каждую сборку; библиотека и заголовок обязательны.
 
-Общие настройки заданы в `cmake/CompilerOptions.cmake` и подключаются корневым
-CMake до создания целей: C++20/CUDA20 без расширений, `-Wall -Wextra -Wpedantic`
-для C++-компиляции. Библиотеки, приложение и тесты наследуют эти настройки.
+`cmake/CompilerOptions.cmake` определяет интерфейсную библиотеку `pwbench_options`
+с алиасом `pwbench::options`. Библиотеки, приложение и тесты подключают её через
+`target_link_libraries(... PRIVATE pwbench::options)`: минимум C++20, CUDA20 при
+включённом CUDA toolchain, `-Wall -Wextra -Wpedantic` для C++-компиляции.
+Требование C++20 также опубликовано через `pwbench::core`; предупреждения
+потребителям не передаются. Глобально заданы только `CMAKE_CXX_EXTENSIONS OFF`
+и `CMAKE_CUDA_EXTENSIONS OFF`: эти свойства через интерфейс не наследуются.
 `-Werror` не включается.
 
 ```bash

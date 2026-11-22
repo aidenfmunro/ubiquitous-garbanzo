@@ -7,7 +7,11 @@ file(WRITE "${TEST_DIRECTORY}/words.txt" "another-fixture\nbench-fixture\n")
 
 function(check_run expected_code expected_text)
     execute_process(
-        COMMAND "${PROGRAM}" --strategy wordlist --backend cpu --wordlist "${TEST_DIRECTORY}/words.txt" ${ARGN}
+        COMMAND "${PROGRAM}"
+            --strategy wordlist
+            --backend cpu
+            --wordlist "${TEST_DIRECTORY}/words.txt"
+            ${ARGN}
         RESULT_VARIABLE result
         OUTPUT_VARIABLE output
         ERROR_VARIABLE errors
@@ -15,25 +19,57 @@ function(check_run expected_code expected_text)
     )
     string(FIND "${output}${errors}" "${expected_text}" position)
     if(NOT result STREQUAL expected_code OR position EQUAL -1)
-        message(FATAL_ERROR "Expected exit ${expected_code} and '${expected_text}', got ${result}\n${output}${errors}")
+        message(FATAL_ERROR
+            "Expected exit ${expected_code} and '${expected_text}', got ${result}\n${output}${errors}"
+        )
     endif()
 endfunction()
 
 set(argon2id --algorithm argon2id --memory-kib 16 --iterations 1 --lanes 1)
-set(hash "$argon2id$v=19$m=16,t=1,p=1$cHdiZW5jaC1hcmdvbjJpZA$MV5AkayZpGl+DVUrqW9A7X3cN0W4LtlznnWUE8nS4Ks")
-check_run(0 "target_hash: ${hash}\nstatus: found\ncandidate: \"bench-fixture\"\nchecks: 2\n"
-          ${argon2id} --password bench-fixture)
-check_run(1 "status: exhausted\nchecks: 2\n" ${argon2id} --password missing-fixture)
-check_run(2 "Argon2id: Memory cost is too small" --algorithm argon2id
-          --password bench-fixture --memory-kib 8 --lanes 2)
-check_run(2 "--lanes must be a positive integer" --algorithm argon2id
-          --password bench-fixture --lanes 4294967296)
+set(hash
+    "$argon2id$v=19$m=16,t=1,p=1$cHdiZW5jaC1hcmdvbjJpZA$MV5AkayZpGl+DVUrqW9A7X3cN0W4LtlznnWUE8nS4Ks"
+)
+check_run(0
+    "target_hash: ${hash}\nstatus: found\ncandidate: \"bench-fixture\"\nchecks: 2\n"
+    ${argon2id} --password bench-fixture
+)
+check_run(1 "status: exhausted\nchecks: 2\n"
+    ${argon2id} --password missing-fixture
+)
+check_run(2 "Argon2id: Memory cost is too small"
+    --algorithm argon2id
+    --password bench-fixture
+    --memory-kib 8
+    --lanes 2
+)
+check_run(2 "--lanes must be a positive integer"
+    --algorithm argon2id
+    --password bench-fixture
+    --lanes 4294967296
+)
 check_run(2 "unknown argument for selected combination: --iterations"
-          --algorithm md5 --password bench-fixture --iterations 1)
-check_run(0 "candidate: \"bench-fixture\"" ${argon2id} --password bench-fixture --threads 4)
+    --algorithm md5
+    --password bench-fixture
+    --iterations 1
+)
+check_run(0 "candidate: \"bench-fixture\""
+    ${argon2id} --password bench-fixture --threads 4
+)
 
-execute_process(COMMAND "${PROGRAM}" --algorithm argon2id --help
-    RESULT_VARIABLE result OUTPUT_VARIABLE output ERROR_VARIABLE errors TIMEOUT 10)
-if(NOT result STREQUAL "0" OR NOT output MATCHES "--memory-kib N" OR NOT output MATCHES "--lanes N")
-    message(FATAL_ERROR "Missing Argon2id module help: ${result}\n${output}${errors}")
+execute_process(
+    COMMAND "${PROGRAM}"
+        --algorithm argon2id
+        --help
+    RESULT_VARIABLE result
+    OUTPUT_VARIABLE output
+    ERROR_VARIABLE errors
+    TIMEOUT 10
+)
+if(NOT result STREQUAL "0"
+    OR NOT output MATCHES "--memory-kib N"
+    OR NOT output MATCHES "--lanes N"
+)
+    message(FATAL_ERROR
+        "Missing Argon2id module help: ${result}\n${output}${errors}"
+    )
 endif()
