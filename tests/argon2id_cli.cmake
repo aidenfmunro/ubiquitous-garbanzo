@@ -7,7 +7,7 @@ file(WRITE "${TEST_DIRECTORY}/words.txt" "another-fixture\nbench-fixture\n")
 
 function(check_run expected_code expected_text)
     execute_process(
-        COMMAND "${PROGRAM}" --wordlist "${TEST_DIRECTORY}/words.txt" ${ARGN}
+        COMMAND "${PROGRAM}" --strategy wordlist --backend cpu --wordlist "${TEST_DIRECTORY}/words.txt" ${ARGN}
         RESULT_VARIABLE result
         OUTPUT_VARIABLE output
         ERROR_VARIABLE errors
@@ -28,4 +28,12 @@ check_run(2 "Argon2id: Memory cost is too small" --algorithm argon2id
           --password bench-fixture --memory-kib 8 --lanes 2)
 check_run(2 "--lanes must be a positive integer" --algorithm argon2id
           --password bench-fixture --lanes 4294967296)
-check_run(2 "require --algorithm argon2id" --algorithm md5 --password bench-fixture --iterations 1)
+check_run(2 "unknown argument for selected combination: --iterations"
+          --algorithm md5 --password bench-fixture --iterations 1)
+check_run(0 "candidate: \"bench-fixture\"" ${argon2id} --password bench-fixture --threads 4)
+
+execute_process(COMMAND "${PROGRAM}" --algorithm argon2id --help
+    RESULT_VARIABLE result OUTPUT_VARIABLE output ERROR_VARIABLE errors TIMEOUT 10)
+if(NOT result STREQUAL "0" OR NOT output MATCHES "--memory-kib N" OR NOT output MATCHES "--lanes N")
+    message(FATAL_ERROR "Missing Argon2id module help: ${result}\n${output}${errors}")
+endif()

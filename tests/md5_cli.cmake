@@ -9,7 +9,8 @@ file(WRITE "${TEST_DIRECTORY}/empty-file.txt" "")
 
 function(check_password password wordlist threads expected_code expected_pattern)
     execute_process(
-        COMMAND "${PROGRAM}" --password "${password}" --wordlist "${wordlist}" --threads "${threads}"
+        COMMAND "${PROGRAM}" --algorithm md5 --strategy wordlist --backend cpu
+            --password "${password}" --wordlist "${wordlist}" --threads "${threads}"
         RESULT_VARIABLE result
         OUTPUT_VARIABLE output
         ERROR_VARIABLE errors
@@ -46,6 +47,36 @@ endif()
 
 execute_process(COMMAND "${PROGRAM}"
     RESULT_VARIABLE result OUTPUT_VARIABLE output ERROR_VARIABLE errors TIMEOUT 10)
+if(NOT result STREQUAL "0" OR NOT output MATCHES "Usage: pwbench" OR output MATCHES "target_hash:")
+    message(FATAL_ERROR "An empty invocation must show help: ${result}\n${output}${errors}")
+endif()
+
+execute_process(COMMAND "${PROGRAM}" --password password
+    RESULT_VARIABLE result OUTPUT_VARIABLE output ERROR_VARIABLE errors TIMEOUT 10)
+if(NOT result STREQUAL "0" OR NOT output MATCHES "Usage: pwbench" OR output MATCHES "target_hash:")
+    message(FATAL_ERROR "A password must not select an algorithm: ${result}\n${output}${errors}")
+endif()
+
+execute_process(COMMAND "${PROGRAM}" --algorithm md5 --password password
+    RESULT_VARIABLE result OUTPUT_VARIABLE output ERROR_VARIABLE errors TIMEOUT 10)
+if(NOT result STREQUAL "2" OR NOT errors MATCHES "are all required" OR NOT errors MATCHES "Usage:")
+    message(FATAL_ERROR "Partial selection must fail with help: ${result}\n${output}${errors}")
+endif()
+
+execute_process(COMMAND "${PROGRAM}" --algorithm md5 --strategy wordlist --backend cpu
+    RESULT_VARIABLE result OUTPUT_VARIABLE output ERROR_VARIABLE errors TIMEOUT 10)
 if(NOT result STREQUAL "2" OR NOT errors MATCHES "--password is required")
     message(FATAL_ERROR "Missing password was not rejected: ${result}\n${output}${errors}")
+endif()
+
+execute_process(COMMAND "${PROGRAM}" --algorithm md5 --help
+    RESULT_VARIABLE result OUTPUT_VARIABLE output ERROR_VARIABLE errors TIMEOUT 10)
+if(NOT result STREQUAL "0" OR NOT output MATCHES "--wordlist PATH" OR output MATCHES "--memory-kib")
+    message(FATAL_ERROR "MD5 help must only show its registered parameters: ${result}\n${output}${errors}")
+endif()
+
+execute_process(COMMAND "${PROGRAM}" --algorithm md5 --strategy wordlist --backend cuda --password password
+    RESULT_VARIABLE result OUTPUT_VARIABLE output ERROR_VARIABLE errors TIMEOUT 10)
+if(NOT result STREQUAL "2" OR NOT errors MATCHES "unsupported combination" OR output MATCHES "target_hash:")
+    message(FATAL_ERROR "Unsupported backend must not fall back to CPU: ${result}\n${output}${errors}")
 endif()
