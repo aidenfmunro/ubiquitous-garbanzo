@@ -7,6 +7,11 @@ target_link_libraries(pwbench_modules
     PRIVATE
         pwbench::options
 )
+if(PWBENCH_ENABLE_CUDA)
+    target_compile_definitions(pwbench_modules PRIVATE PWBENCH_ENABLE_CUDA)
+    target_link_libraries(pwbench_modules PUBLIC pwbench::md5_cuda)
+endif()
+
 target_compile_definitions(pwbench_modules
     PRIVATE
         PWBENCH_DEFAULT_WORDLIST="${PWBENCH_WORDLIST_PATH}"

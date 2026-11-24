@@ -9,24 +9,6 @@ namespace pwbench {
 
 WordlistWork::WordlistWork(std::vector<Byte> bytes) : bytes_(std::move(bytes)) {}
 
-std::optional<CandidateView> WordlistWork::next_candidate() {
-    if (position_ == bytes_.size()) {
-        return std::nullopt;
-    }
-    const auto begin = position_;
-    while (position_ < bytes_.size() && bytes_[position_] != '\n') {
-        ++position_;
-    }
-    auto size = position_ - begin;
-    if (position_ < bytes_.size()) {
-        if (size != 0 && bytes_[position_ - 1] == '\r') {
-            --size;
-        }
-        ++position_;
-    }
-    return CandidateView{bytes_.data() + begin, size};
-}
-
 WordlistStrategy::WordlistStrategy(const std::filesystem::path& path, std::size_t block_bytes)
     : block_bytes_(block_bytes) {
     if (block_bytes == 0 ||

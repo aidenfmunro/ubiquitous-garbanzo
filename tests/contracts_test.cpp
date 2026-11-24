@@ -30,9 +30,9 @@ static_assert(std::is_trivially_copyable_v<pwbench::CandidateView>);
 static_assert(std::is_standard_layout_v<pwbench::CandidateView>);
 static_assert(!pwbench::CpuAlgorithm<MissingAlgorithm>);
 static_assert(!pwbench::CpuAlgorithm<WrongAlgorithm>);
-static_assert(!pwbench::CpuWork<WrongWork>);
-static_assert(pwbench::CpuWork<MoveOnlyWork>);
-static_assert(!pwbench::CpuStrategy<WrongStrategy>);
+static_assert(!pwbench::HostWork<WrongWork>);
+static_assert(pwbench::HostWork<MoveOnlyWork>);
+static_assert(!pwbench::HostStrategy<WrongStrategy>);
 
 TEST(ContractsTest, TargetIsAlgorithmOwned) {
     const fixtures::TestAlgorithm algorithm;

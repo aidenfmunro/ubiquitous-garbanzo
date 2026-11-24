@@ -132,8 +132,8 @@ private:
 };
 
 static_assert(pwbench::CpuAlgorithm<TestAlgorithm>);
-static_assert(pwbench::CpuStrategy<BlockStrategy>);
-static_assert(pwbench::CpuStrategy<CounterStrategy>);
+static_assert(pwbench::HostStrategy<BlockStrategy>);
+static_assert(pwbench::HostStrategy<CounterStrategy>);
 
 }
 

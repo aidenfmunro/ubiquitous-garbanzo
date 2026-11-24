@@ -17,13 +17,13 @@ concept CpuAlgorithm =
     };
 
 template <class T>
-concept CpuWork = std::movable<T> && requires(T& work) {
+concept HostWork = std::movable<T> && requires(T& work) {
     { work.next_candidate() } -> std::same_as<std::optional<CandidateView>>;
 };
 
 template <class T>
-concept CpuStrategy = requires(T& strategy) {
-    requires CpuWork<typename T::work_type>;
+concept HostStrategy = requires(T& strategy) {
+    requires HostWork<typename T::work_type>;
     { strategy.next_work() } -> std::same_as<std::optional<typename T::work_type>>;
 };
 
