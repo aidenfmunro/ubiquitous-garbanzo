@@ -1,5 +1,9 @@
 #include "temp_directory.hpp"
 
+#ifdef PWBENCH_ENABLE_CUDA
+#include "cuda_test_support.hpp"
+#endif
+
 #include <gtest/gtest.h>
 
 #include <fcntl.h>
@@ -187,6 +191,7 @@ TEST_F(Md5CliTest, ShowsOptionsRegisteredForMd5) {
     EXPECT_EQ(result.output.find("--memory-kib"), std::string::npos) << result.output;
 }
 
+#ifndef PWBENCH_ENABLE_CUDA
 TEST_F(Md5CliTest, RejectsUnsupportedBackend) {
     const auto result = invoke(directory, {"--algorithm", "md5", "--strategy", "wordlist",
                                            "--backend", "cuda", "--password", "password"});
@@ -194,6 +199,74 @@ TEST_F(Md5CliTest, RejectsUnsupportedBackend) {
     EXPECT_NE(result.errors.find("unsupported combination"), std::string::npos) << result.errors;
     EXPECT_EQ(result.output.find("target_hash:"), std::string::npos) << result.output;
 }
+
+#endif
+
+#ifdef PWBENCH_ENABLE_CUDA
+TEST_F(Md5CliTest, ShowsCudaOptionsWithoutPreparingTarget) {
+    const auto result = invoke(directory, {"--algorithm", "md5", "--backend", "cuda", "--help"});
+    EXPECT_EQ(result.code, 0) << result.errors;
+    EXPECT_NE(result.output.find("--device N"), std::string::npos);
+    EXPECT_NE(result.output.find("--batch-size N"), std::string::npos);
+    EXPECT_NE(result.output.find("--batch-bytes N"), std::string::npos);
+    EXPECT_EQ(result.output.find("--threads N"), std::string::npos);
+    EXPECT_EQ(result.output.find("target_hash:"), std::string::npos);
+}
+
+class CudaCliTest : public fixtures::CudaTest {
+protected:
+    TempDirectory directory;
+    const std::string words = directory.write("words.txt", "alpha\nbeta\ngamma\n").string();
+
+    Invocation run(std::initializer_list<std::string> arguments) {
+        std::vector<std::string> argv{"--algorithm", "md5",  "--strategy", "wordlist",
+                                      "--backend",   "cuda", "--wordlist", words};
+        argv.insert(argv.end(), arguments);
+        return invoke(directory, std::move(argv));
+    }
+};
+
+TEST_F(CudaCliTest, FindsPasswordAndCountsTheCompletedBatch) {
+    const auto result = run({"--password", "beta"});
+    expects(result, 0, "status: found\ncandidate: \"beta\"\nchecks: 3\n");
+    EXPECT_NE(result.output.find("backend: cuda"), std::string::npos);
+    EXPECT_NE(result.output.find("target_hash: 987bcab01b929eb2c07877b224215c92"),
+              std::string::npos);
+}
+
+TEST_F(CudaCliTest, HonorsBatchSizeAndByteBudget) {
+    expects(run({"--password", "beta", "--batch-size", "2"}), 0, "checks: 2\n");
+    expects(run({"--password", "beta", "--batch-bytes", "1"}), 0, "checks: 2\n");
+}
+
+TEST_F(CudaCliTest, ExhaustsWordlistForAbsentPassword) {
+    expects(run({"--password", "absent"}), 1, "status: exhausted\nchecks: 3\n");
+}
+
+TEST_F(CudaCliTest, HandlesEmptyPasswordAndEmptyFile) {
+    directory.write("words.txt", "\nalpha\n");
+    expects(run({"--password", ""}), 0, "candidate: \"\"\nchecks: 2\n");
+    directory.write("words.txt", "");
+    expects(run({"--password", "beta"}), 1, "checks: 0\n");
+}
+
+TEST_F(CudaCliTest, RejectsCpuOptionsAndInvalidBatchSizes) {
+    expects(run({"--password", "beta", "--threads", "1"}), 2,
+            "unknown argument for selected combination: --threads");
+    expects(run({"--password", "beta", "--batch-size", "0"}), 2,
+            "--batch-size must be a positive integer");
+    expects(run({"--password", "beta", "--device", "-1"}), 2,
+            "--device must be a nonnegative integer");
+}
+
+TEST_F(CudaCliTest, UnavailableDeviceDoesNotFallBackToCpu) {
+    int count{};
+    ASSERT_EQ(cudaGetDeviceCount(&count), cudaSuccess);
+    const auto result = run({"--password", "beta", "--device", std::to_string(count)});
+    expects(result, 2, "cudaSetDevice");
+    EXPECT_EQ(result.output.find("backend: cpu"), std::string::npos);
+}
+#endif
 
 class Argon2idCliTest : public ::testing::Test {
 protected:
@@ -246,6 +319,13 @@ TEST_F(Argon2idCliTest, FindsPasswordWithMultipleThreads) {
     expects(run({"--algorithm", "argon2id", "--memory-kib", "16", "--iterations", "1", "--lanes",
                  "1", "--password", "bench-fixture", "--threads", "4"}),
             0, "candidate: \"bench-fixture\"");
+}
+
+TEST_F(Argon2idCliTest, RejectsUnsupportedCudaCombination) {
+    const auto result = invoke(directory, {"--algorithm", "argon2id", "--strategy", "wordlist",
+                                           "--backend", "cuda", "--password", "password"});
+    expects(result, 2, "unsupported combination");
+    EXPECT_EQ(result.output.find("target_hash:"), std::string::npos);
 }
 
 TEST_F(Argon2idCliTest, ShowsOptionsRegisteredForArgon2id) {

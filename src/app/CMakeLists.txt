@@ -14,4 +14,7 @@ target_link_libraries(pwbench
         pwbench::modules
         pwbench::options
 )
+if(PWBENCH_ENABLE_CUDA)
+    target_compile_definitions(pwbench PRIVATE PWBENCH_ENABLE_CUDA)
+endif()
 add_dependencies(pwbench pwbench_wordlist)

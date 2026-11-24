@@ -10,7 +10,7 @@
 
 namespace {
 
-static_assert(pwbench::CpuStrategy<pwbench::WordlistStrategy>);
+static_assert(pwbench::HostStrategy<pwbench::WordlistStrategy>);
 
 std::vector<pwbench::Candidate> read_all(pwbench::WordlistStrategy& strategy) {
     std::vector<pwbench::Candidate> candidates;

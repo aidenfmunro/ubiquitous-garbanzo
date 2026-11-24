@@ -44,7 +44,7 @@ PreparedExperiment prepare_cpu(const ExperimentRequest& request) {
 template <class AlgorithmModule, class StrategyModule>
 void register_cpu(Registry& registry) {
     static_assert(CpuAlgorithm<typename AlgorithmModule::algorithm_type>);
-    static_assert(CpuStrategy<typename StrategyModule::strategy_type>);
+    static_assert(HostStrategy<typename StrategyModule::strategy_type>);
     static_assert(AlgorithmModule::poll_interval > 0);
     auto options = AlgorithmModule::options();
     const auto strategy_options = StrategyModule::options();

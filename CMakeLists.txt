@@ -4,7 +4,7 @@ project(ubiquitous_garbanzo VERSION 0.1.0 LANGUAGES CXX)
 list(APPEND CMAKE_MODULE_PATH "${PROJECT_SOURCE_DIR}/cmake")
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 
-option(PWBENCH_ENABLE_CUDA "Enable the toolchain for future CUDA modules" OFF)
+option(PWBENCH_ENABLE_CUDA "Build the CUDA executor and MD5 implementation" OFF)
 if(PWBENCH_ENABLE_CUDA)
     enable_language(CUDA)
 endif()
@@ -30,6 +30,9 @@ target_link_libraries(pwbench_core
 
 include(cmake/Wordlist.cmake)
 
+if(PWBENCH_ENABLE_CUDA)
+    add_subdirectory(src/cuda)
+endif()
 add_subdirectory(src/md5)
 add_subdirectory(src/argon2id)
 add_subdirectory(src/modules)

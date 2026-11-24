@@ -37,4 +37,29 @@ endforeach()
 
 pwbench_add_test(cli 10)
 add_dependencies(cli_test pwbench)
-target_compile_definitions(cli_test PRIVATE "PWBENCH_CLI_PATH=\"$<TARGET_FILE:pwbench>\"")
+target_compile_definitions(cli_test
+    PRIVATE
+        "PWBENCH_CLI_PATH=\"$<TARGET_FILE:pwbench>\""
+)
+
+if(PWBENCH_ENABLE_CUDA)
+    target_compile_definitions(cli_test PRIVATE PWBENCH_ENABLE_CUDA)
+    target_link_libraries(cli_test PRIVATE pwbench::cuda)
+
+    add_library(pwbench_cuda_test_fixtures cuda_fixtures.cu)
+    set_target_properties(pwbench_cuda_test_fixtures
+        PROPERTIES CUDA_RUNTIME_LIBRARY Shared
+    )
+    target_link_libraries(pwbench_cuda_test_fixtures
+        PUBLIC
+            pwbench::cuda
+        PRIVATE
+            pwbench::options
+    )
+    pwbench_add_test(cuda_executor 60 pwbench_cuda_test_fixtures)
+    pwbench_add_test(md5_cuda 60 pwbench::md5_cuda)
+    pwbench_add_test(cuda_modules 60
+        pwbench::modules
+        pwbench_cuda_test_fixtures
+    )
+endif()

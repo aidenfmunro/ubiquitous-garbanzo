@@ -19,7 +19,7 @@ struct CpuOptions {
 
 namespace detail {
 
-template <CpuAlgorithm Algorithm, CpuStrategy Strategy>
+template <CpuAlgorithm Algorithm, HostStrategy Strategy>
 class CpuRun {
 public:
     CpuRun(const Algorithm& algorithm, const typename Algorithm::target_type& target,
@@ -130,7 +130,7 @@ private:
 
 class CpuExecutor {
 public:
-    template <CpuAlgorithm Algorithm, CpuStrategy Strategy>
+    template <CpuAlgorithm Algorithm, HostStrategy Strategy>
     static RunResult run(const Algorithm& algorithm, const typename Algorithm::target_type& target,
                          Strategy& strategy, const RunLimits& limits = {},
                          const CpuOptions& options = {}) {
