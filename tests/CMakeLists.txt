@@ -58,6 +58,7 @@ if(PWBENCH_ENABLE_CUDA)
     )
     pwbench_add_test(cuda_executor 60 pwbench_cuda_test_fixtures)
     pwbench_add_test(md5_cuda 60 pwbench::md5_cuda)
+    pwbench_add_test(argon2id_cuda 60 pwbench::argon2id_cuda pwbench::argon2id)
     pwbench_add_test(cuda_modules 60
         pwbench::modules
         pwbench_cuda_test_fixtures
