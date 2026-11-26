@@ -3,10 +3,10 @@
 Расширяемый стенд на C++20. Один эксперимент — один целевой хеш.
 Алгоритмы и стратегии подключаются исходным кодом с пересборкой проекта.
 
-Реализованы CPU-исполнитель для MD5 и Argon2id, CUDA-исполнитель с MD5,
-отдельный CUDA-бенчмарк Argon2id, потоковая словарная стратегия, автоматическая
-загрузка SecLists и общий CLI. MD5 здесь — учебный
-алгоритм для эксперимента, а не способ хранения реальных паролей.
+Реализованы CPU-исполнители для MD5, SHA-256 и Argon2id, CUDA-исполнитель
+с MD5 и SHA-256, отдельный CUDA-бенчмарк Argon2id, потоковая словарная стратегия,
+автоматическая загрузка SecLists и общий CLI. MD5 и SHA-256 здесь — учебные
+алгоритмы для эксперимента, а не способ хранения реальных паролей.
 
 ## Сборка и проверка
 
@@ -53,12 +53,12 @@ cmake --build build-cuda --parallel
 ctest --test-dir build-cuda --output-on-failure
 ```
 
-Опция добавляет CUDA-исполнитель для MD5 и бенчмарк Argon2id.
+Опция добавляет CUDA-исполнитель для MD5 и SHA-256 и бенчмарк Argon2id.
 Без Toolkit конфигурация с этой опцией завершается ошибкой. CUDA-тесты требуют GPU;
 при отсутствии устройства или драйвера аппаратные сценарии помечаются `Skipped`.
 Регистрация, справка и проверка параметров не требуют инициализации GPU.
 
-## Запуск MD5-пайплайна
+## Запуск MD5 и SHA-256 на CPU
 
 Без выбора приложение показывает справку и зарегистрированные сочетания:
 
@@ -66,25 +66,27 @@ ctest --test-dir build-cuda --output-on-failure
 ./build/src/app/pwbench
 ./build/src/app/pwbench --help
 ./build/src/app/pwbench --algorithm md5 --help
+./build/src/app/pwbench --algorithm sha256 --help
 ```
 
 Для запуска обязательны все три селектора и тестовый пароль:
 
 ```bash
 ./build/src/app/pwbench --algorithm md5 --strategy wordlist --backend cpu --password password
+./build/src/app/pwbench --algorithm sha256 --strategy wordlist --backend cpu --password password
 ```
 
 Выбора алгоритма, стратегии или backend по умолчанию нет. Один `--password`
 не запускает подбор. Неполный выбор возвращает ошибку и справку; неподдерживаемое
 сочетание не заменяется другим. `--help` разрешает неполный выбор как фильтр справки.
 
-Приложение вычисляет MD5 заданного пароля, а затем передаёт подбору только
+Приложение вычисляет выбранный хеш заданного пароля, а затем передаёт подбору только
 подготовленную цель. Кандидаты читаются из автоматически загруженного словаря.
 По умолчанию используется один поток. Дополнительные варианты:
 
 ```bash
 ./build/src/app/pwbench --algorithm md5 --strategy wordlist --backend cpu --password password --threads 4
-./build/src/app/pwbench --algorithm md5 --strategy wordlist --backend cpu --password example --wordlist /path/to/words.txt
+./build/src/app/pwbench --algorithm sha256 --strategy wordlist --backend cpu --password example --wordlist /path/to/words.txt
 ./build/src/app/pwbench --help
 ```
 
@@ -95,21 +97,24 @@ ctest --test-dir build-cuda --output-on-failure
 Передавайте через CLI тестовые пароли: аргументы могут попадать в историю shell
 и быть видны в списке процессов.
 
-`src/md5/` содержит обе реализации MD5: `md5.cpp` для CPU и `md5.cu` для CUDA,
-а также их общий `CMakeLists.txt`. CUDA-часть собирается только при
-`PWBENCH_ENABLE_CUDA=ON`. Заголовки — `pwbench/algorithms/md5.hpp` и
-`pwbench/algorithms/md5.cuh`; CPU-заголовок не включает CUDA-интерфейс.
-Точка входа — `src/app/main.cpp`, адаптеры MD5 для обоих backend —
-`src/modules/md5.cpp`, регистрация сочетаний —
-`src/app/registrations.cpp`. Общий `src/app/cli.cpp` не знает имён и параметров
-конкретных алгоритмов и стратегий. Реализация проверяется тестовыми
-векторами RFC 1321, граничными длинами, бинарными входами и сквозными тестами CLI.
+Каталоги `src/md5/` и `src/sha256/` содержат реализации соответствующих алгоритмов:
+`.cpp` для CPU и `.cu` для CUDA, а также общие `CMakeLists.txt`. CUDA-части собираются
+только при `PWBENCH_ENABLE_CUDA=ON`. Заголовки находятся в
+`pwbench/algorithms/md5.hpp`, `md5.cuh`, `sha256.hpp` и `sha256.cuh`;
+CPU-заголовки не включают CUDA-интерфейсы. Точка входа — `src/app/main.cpp`,
+адаптеры для обоих backend — `src/modules/md5.cpp` и `src/modules/sha256.cpp`,
+регистрация сочетаний — `src/app/registrations.cpp`. Общий `src/app/cli.cpp` не знает
+имён и параметров конкретных алгоритмов и стратегий. Реализации проверяются
+стандартными тестовыми векторами, граничными длинами, бинарными входами и сквозными
+тестами CLI.
 
-## Запуск MD5 на CUDA
+## Запуск MD5 и SHA-256 на CUDA
 
 ```bash
 ./build-cuda/src/app/pwbench \
   --algorithm md5 --strategy wordlist --backend cuda --password password
+./build-cuda/src/app/pwbench \
+  --algorithm sha256 --strategy wordlist --backend cuda --password password
 ```
 
 Параметры CUDA-связывания:
@@ -264,13 +269,15 @@ include/pwbench/
   cuda/              device-контракты, host-батч, CUDA stream и буферы
   algorithms/md5.hpp CPU-интерфейс MD5
   algorithms/md5.cuh CUDA-интерфейс MD5
+  algorithms/sha256.hpp CPU-интерфейс SHA-256
+  algorithms/sha256.cuh CUDA-интерфейс SHA-256
   detail/
     cpu_run_state.hpp состояние одного CPU-запуска
     cuda_source.hpp   последовательное чтение заимствованных кандидатов
   registry.hpp       реестр фабрик и подготовленный эксперимент
   parameters.hpp     описания параметров и строковые значения
   cpu_module.hpp     типизированное связывание алгоритма и стратегии
-  modules/           контракты адаптеров; для MD5 — md5.hpp и md5.cuh
+  modules/           контракты адаптеров MD5, SHA-256 и Argon2id
   strategies/wordlist.hpp потоковая словарная стратегия
   app/cli.hpp       интерфейс общего приложения
 src/
@@ -283,6 +290,8 @@ src/
   modules/           параметры и подготовка алгоритмов/стратегий
   md5/md5.cpp        CPU-реализация MD5
   md5/md5.cu         device-реализация MD5 и запуск ядра
+  sha256/sha256.cpp  CPU-реализация SHA-256
+  sha256/sha256.cu   device-реализация SHA-256 и запуск ядра
   cuda/              общие CUDA-ресурсы, упаковка и параметры backend
   argon2id/argon2id.cpp адаптер к libargon2
 tests/
@@ -633,6 +642,8 @@ compute-sanitizer --tool memcheck --leak-check full --error-exitcode 99 \
   ./build-cuda/tests/md5_cuda_test
 compute-sanitizer --tool racecheck --error-exitcode 99 \
   ./build-cuda/tests/md5_cuda_test
+compute-sanitizer --tool memcheck --leak-check full --error-exitcode 99 \
+  ./build-cuda/tests/sha256_cuda_test
 compute-sanitizer --tool synccheck --error-exitcode 99 \
   ./build-cuda/tests/cuda_modules_test
 ```

@@ -1,5 +1,6 @@
 #include "pwbench/modules/argon2id.hpp"
 #include "pwbench/modules/md5.hpp"
+#include "pwbench/modules/sha256.hpp"
 #include "pwbench/modules/wordlist.hpp"
 
 #include "module_fixtures.hpp"
@@ -15,6 +16,7 @@ namespace {
 
 static_assert(pwbench::Argon2idModule::poll_interval == 1);
 static_assert(pwbench::Md5Module::poll_interval == 256);
+static_assert(pwbench::Sha256Module::poll_interval == 256);
 
 TEST(ModulesTest, RealModulesWorkWithNewAlgorithmAndStrategy) {
     TempDirectory directory;
@@ -22,11 +24,17 @@ TEST(ModulesTest, RealModulesWorkWithNewAlgorithmAndStrategy) {
     const auto password = fixtures::bytes("beta");
     pwbench::Registry registry;
     pwbench::register_cpu<pwbench::Md5Module, fixtures::BlocksModule>(registry);
+    pwbench::register_cpu<pwbench::Sha256Module, fixtures::BlocksModule>(registry);
     pwbench::register_cpu<fixtures::LengthModule, pwbench::WordlistModule>(registry);
     const auto md5 = registry.prepare({"md5", "test-blocks", pwbench::Backend::cpu},
                                       {fixtures::view(password), {}});
     EXPECT_EQ(md5.target_hash, "987bcab01b929eb2c07877b224215c92");
     EXPECT_EQ(md5.run().candidate, password);
+    const auto sha256 = registry.prepare({"sha256", "test-blocks", pwbench::Backend::cpu},
+                                         {fixtures::view(password), {}});
+    EXPECT_EQ(sha256.target_hash,
+              "f44e64e75f3948e9f73f8dfa94721c4ce8cbb4f265c4790c702b2d41cfbf2753");
+    EXPECT_EQ(sha256.run().candidate, password);
     const pwbench::Selection length{"test-length", "wordlist", pwbench::Backend::cpu};
     const auto& options = registry.options(length);
     const auto wordlist =
