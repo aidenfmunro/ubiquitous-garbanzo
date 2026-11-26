@@ -1,4 +1,5 @@
 #include "pwbench/modules/md5.cuh"
+#include "pwbench/modules/sha256.cuh"
 #include "pwbench/modules/wordlist.hpp"
 
 #include "cuda_fixtures.hpp"
@@ -18,6 +19,8 @@ pwbench::Registry registry() {
     pwbench::register_cuda<fixtures::CudaSumModule, fixtures::CounterModule>(registry);
     pwbench::register_cuda<pwbench::Md5CudaModule, fixtures::BlocksModule>(registry);
     pwbench::register_cuda<pwbench::Md5CudaModule, pwbench::WordlistModule>(registry);
+    pwbench::register_cuda<pwbench::Sha256CudaModule, fixtures::BlocksModule>(registry);
+    pwbench::register_cuda<pwbench::Sha256CudaModule, pwbench::WordlistModule>(registry);
     return registry;
 }
 
@@ -51,6 +54,7 @@ TEST(CudaOptionsTest, PreparesWithoutInitializingCudaAndHasIndependentSchemas) {
     EXPECT_EQ(result.reason, pwbench::StopReason::check_limit);
     EXPECT_EQ(result.checks, 0U);
     EXPECT_TRUE(registry.supports({"md5", "wordlist", pwbench::Backend::cuda}));
+    EXPECT_TRUE(registry.supports({"sha256", "wordlist", pwbench::Backend::cuda}));
     EXPECT_FALSE(registry.supports({"argon2id", "wordlist", pwbench::Backend::cuda}));
     EXPECT_THROW(
         (pwbench::register_cuda<fixtures::CudaSumModule, fixtures::BlocksModule>(registry)),
@@ -88,6 +92,11 @@ TEST_F(CudaModulesTest, IndependentlyCombinesAlgorithmsAndStrategies) {
                                       {fixtures::view(text), {}});
     EXPECT_EQ(md5.target_hash, "987bcab01b929eb2c07877b224215c92");
     EXPECT_EQ(md5.run().candidate, text);
+    const auto sha256 = registry.prepare({"sha256", "test-blocks", pwbench::Backend::cuda},
+                                         {fixtures::view(text), {}});
+    EXPECT_EQ(sha256.target_hash,
+              "f44e64e75f3948e9f73f8dfa94721c4ce8cbb4f265c4790c702b2d41cfbf2753");
+    EXPECT_EQ(sha256.run().candidate, text);
 }
 
 TEST_F(CudaModulesTest, UsesIndependentSessionsForConcurrentRuns) {

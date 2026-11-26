@@ -191,6 +191,22 @@ TEST_F(Md5CliTest, ShowsOptionsRegisteredForMd5) {
     EXPECT_EQ(result.output.find("--memory-kib"), std::string::npos) << result.output;
 }
 
+class Sha256CliTest : public ::testing::Test {
+protected:
+    TempDirectory directory;
+    const std::string words = directory.write("words.txt", "alpha\nbeta\ngamma\n").string();
+};
+
+TEST_F(Sha256CliTest, FindsPassword) {
+    const auto result =
+        invoke(directory, {"--algorithm", "sha256", "--strategy", "wordlist", "--backend", "cpu",
+                           "--password", "beta", "--wordlist", words, "--threads", "4"});
+    expects(result, 0, "status: found\ncandidate: \"beta\"\n");
+    EXPECT_NE(result.output.find(
+                  "target_hash: f44e64e75f3948e9f73f8dfa94721c4ce8cbb4f265c4790c702b2d41cfbf2753"),
+              std::string::npos);
+}
+
 #ifndef PWBENCH_ENABLE_CUDA
 TEST_F(Md5CliTest, RejectsUnsupportedBackend) {
     const auto result = invoke(directory, {"--algorithm", "md5", "--strategy", "wordlist",
@@ -265,6 +281,23 @@ TEST_F(CudaCliTest, UnavailableDeviceDoesNotFallBackToCpu) {
     const auto result = run({"--password", "beta", "--device", std::to_string(count)});
     expects(result, 2, "cudaSetDevice");
     EXPECT_EQ(result.output.find("backend: cpu"), std::string::npos);
+}
+
+class Sha256CudaCliTest : public fixtures::CudaTest {
+protected:
+    TempDirectory directory;
+};
+
+TEST_F(Sha256CudaCliTest, FindsPassword) {
+    const auto words = directory.write("words.txt", "alpha\nbeta\ngamma\n");
+    const auto result = invoke(directory, {"--algorithm", "sha256", "--strategy", "wordlist",
+                                           "--backend", "cuda", "--password", "beta", "--wordlist",
+                                           words.string(), "--batch-size", "2"});
+    expects(result, 0, "status: found\ncandidate: \"beta\"\nchecks: 2\n");
+    EXPECT_NE(result.output.find("backend: cuda"), std::string::npos);
+    EXPECT_NE(result.output.find(
+                  "target_hash: f44e64e75f3948e9f73f8dfa94721c4ce8cbb4f265c4790c702b2d41cfbf2753"),
+              std::string::npos);
 }
 #endif
 
