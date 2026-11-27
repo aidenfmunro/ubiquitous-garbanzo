@@ -388,4 +388,19 @@ TEST(Pbkdf2Sha256CliTest, RejectsInvalidIterations) {
     expects(result, 2, "PBKDF2 iterations must be in range 1..INT_MAX");
 }
 
+#ifdef PWBENCH_ENABLE_CUDA
+TEST(Pbkdf2Sha256CliTest, RegistersCudaAndValidatesBeforeDeviceAccess) {
+    TempDirectory directory;
+    const auto help = invoke(directory, {"--algorithm", "pbkdf2-sha256", "--help"});
+    EXPECT_EQ(help.code, 0) << help.errors;
+    EXPECT_NE(help.output.find("--backend cuda"), std::string::npos);
+    EXPECT_NE(help.output.find("--iterations N"), std::string::npos);
+
+    const auto invalid =
+        invoke(directory, {"--algorithm", "pbkdf2-sha256", "--strategy", "wordlist", "--backend",
+                           "cuda", "--password", "password", "--iterations", "2147483648"});
+    expects(invalid, 2, "PBKDF2 iterations must be in range 1..INT_MAX");
+}
+#endif
+
 }

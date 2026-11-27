@@ -11,7 +11,9 @@ target_link_libraries(pwbench_modules
 )
 if(PWBENCH_ENABLE_CUDA)
     target_compile_definitions(pwbench_modules PRIVATE PWBENCH_ENABLE_CUDA)
-    target_link_libraries(pwbench_modules PUBLIC pwbench::md5_cuda pwbench::sha256_cuda)
+    target_link_libraries(pwbench_modules
+        PUBLIC pwbench::md5_cuda pwbench::sha256_cuda pwbench::pbkdf2_sha256_cuda
+    )
 endif()
 
 target_compile_definitions(pwbench_modules

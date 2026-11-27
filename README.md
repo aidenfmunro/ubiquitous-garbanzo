@@ -4,7 +4,7 @@
 Алгоритмы и стратегии подключаются исходным кодом с пересборкой проекта.
 
 Реализованы CPU-исполнители для MD5, SHA-256, Argon2id и PBKDF2-HMAC-SHA256, CUDA-исполнитель
-с MD5 и SHA-256, отдельный CUDA-бенчмарк Argon2id, потоковая словарная стратегия,
+с MD5, SHA-256 и PBKDF2-HMAC-SHA256, отдельный CUDA-бенчмарк Argon2id, потоковая словарная стратегия,
 автоматическая загрузка SecLists и общий CLI. MD5 и SHA-256 здесь — учебные
 алгоритмы для эксперимента, а не способ хранения реальных паролей.
 
@@ -54,7 +54,7 @@ cmake --build build-cuda --parallel
 ctest --test-dir build-cuda --output-on-failure
 ```
 
-Опция добавляет CUDA-исполнитель для MD5 и SHA-256 и бенчмарк Argon2id.
+Опция добавляет CUDA-исполнитель для MD5, SHA-256 и PBKDF2-HMAC-SHA256 и бенчмарк Argon2id.
 Без Toolkit конфигурация с этой опцией завершается ошибкой. CUDA-тесты требуют GPU;
 при отсутствии устройства или драйвера аппаратные сценарии помечаются `Skipped`.
 Регистрация, справка и проверка параметров не требуют инициализации GPU.
@@ -161,9 +161,9 @@ printf 'another-fixture\nbench-fixture\n' > build/fixture.txt
 Модуль проверяет остановку перед каждым кандидатом (`poll_interval = 1`),
 а не раз в 256 проверок. Уже выполняющееся хеширование не прерывается.
 
-## Запуск PBKDF2-HMAC-SHA256 на CPU
+## Запуск PBKDF2-HMAC-SHA256 на CPU и CUDA
 
-Алгоритм использует OpenSSL Crypto (`find_package(OpenSSL REQUIRED COMPONENTS Crypto)`).
+CPU-реализация использует OpenSSL Crypto (`find_package(OpenSSL REQUIRED COMPONENTS Crypto)`).
 `--iterations` задаёт положительное число итераций, по умолчанию 100000;
 значение должно помещаться в знаковый `int` интерфейса OpenSSL.
 Цель содержит 32-байтный ключ и фиксированную публичную 16-байтную соль
@@ -172,12 +172,16 @@ printf 'another-fixture\nbench-fixture\n' > build/fixture.txt
 ```bash
 ./build/src/app/pwbench --algorithm pbkdf2-sha256 --strategy wordlist --backend cpu \
   --password password --iterations 100000
+./build-cuda/src/app/pwbench --algorithm pbkdf2-sha256 --strategy wordlist --backend cuda \
+  --password password --iterations 100000 --batch-size 256
 ```
 
 `target_hash` выводится как `$pbkdf2-sha256$i=N$<salt-hex>$<digest-hex>`;
 это формат стенда, а не PHC-строка. Цель готовится до замера. Исполнитель
 проверяет остановку перед каждым кандидатом (`poll_interval = 1`), но уже
-запущенное вычисление не прерывается. CUDA-сочетание не зарегистрировано.
+запущенное вычисление не прерывается. На CUDA один поток хеширует один кандидат;
+все итерации PBKDF2 для него выполняются на GPU. CUDA-исполнитель засчитывает
+целый завершённый батч, поэтому `checks` может быть больше позиции совпадения.
 
 ## Бенчмарк Argon2id на CUDA
 
@@ -295,6 +299,7 @@ include/pwbench/
   algorithms/argon2id.impl.hpp CPU-интерфейс Argon2id
   algorithms/argon2id.impl.cuh CUDA-интерфейс Argon2id для одного входа
   algorithms/pbkdf2_sha256.impl.hpp CPU-интерфейс PBKDF2-HMAC-SHA256
+  algorithms/pbkdf2_sha256.impl.cuh CUDA-интерфейс PBKDF2-HMAC-SHA256
   detail/
     cpu_run_state.hpp состояние одного CPU-запуска
     cuda_source.hpp   последовательное чтение заимствованных кандидатов
@@ -321,6 +326,7 @@ src/
   argon2id/argon2id.impl.cu CUDA-реализация Argon2id для одного входа
   argon2id/cuda_bench.cpp отдельный CPU/CUDA-бенчмарк Argon2id
   pbkdf2_sha256/pbkdf2_sha256.impl.cpp адаптер к OpenSSL Crypto
+  pbkdf2_sha256/pbkdf2_sha256.impl.cu CUDA-реализация PBKDF2-HMAC-SHA256
 tests/
   CMakeLists.txt     сборка и регистрация тестов
   fixtures.hpp       только тестовые алгоритм и источники кандидатов
