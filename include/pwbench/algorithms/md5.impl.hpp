@@ -1,5 +1,5 @@
-#ifndef PWBENCH_ALGORITHMS_SHA256_HPP
-#define PWBENCH_ALGORITHMS_SHA256_HPP
+#ifndef PWBENCH_ALGORITHMS_MD5_IMPL_HPP
+#define PWBENCH_ALGORITHMS_MD5_IMPL_HPP
 
 #include "pwbench/types.hpp"
 
@@ -7,9 +7,9 @@
 
 namespace pwbench {
 
-class Sha256 {
+class Md5 {
 public:
-    using digest_type = std::array<Byte, 32>;
+    using digest_type = std::array<Byte, 16>;
     struct target_type {
         digest_type digest;
     };

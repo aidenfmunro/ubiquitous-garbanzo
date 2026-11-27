@@ -1,4 +1,4 @@
-#include "pwbench/algorithms/md5.hpp"
+#include "pwbench/algorithms/md5.impl.hpp"
 #include "pwbench/cpu_executor.hpp"
 #include "pwbench/strategies/wordlist.hpp"
 

@@ -1,7 +1,7 @@
 #ifndef PWBENCH_MODULES_MD5_CUH
 #define PWBENCH_MODULES_MD5_CUH
 
-#include "pwbench/algorithms/md5.cuh"
+#include "pwbench/algorithms/md5.impl.cuh"
 #include "pwbench/cuda_module.hpp"
 
 namespace pwbench {

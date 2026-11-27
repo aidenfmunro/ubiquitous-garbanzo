@@ -1,4 +1,4 @@
-#include "pwbench/algorithms/pbkdf2_sha256.hpp"
+#include "pwbench/algorithms/pbkdf2_sha256.impl.hpp"
 #include "pwbench/contracts.hpp"
 #include "pwbench/cpu_executor.hpp"
 #include "pwbench/strategies/wordlist.hpp"

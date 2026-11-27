@@ -1,7 +1,7 @@
 #ifndef PWBENCH_MODULES_PBKDF2_SHA256_HPP
 #define PWBENCH_MODULES_PBKDF2_SHA256_HPP
 
-#include "pwbench/algorithms/pbkdf2_sha256.hpp"
+#include "pwbench/algorithms/pbkdf2_sha256.impl.hpp"
 #include "pwbench/cpu_module.hpp"
 
 namespace pwbench {

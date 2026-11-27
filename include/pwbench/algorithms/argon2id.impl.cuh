@@ -1,7 +1,7 @@
-#ifndef PWBENCH_ALGORITHMS_ARGON2ID_CUH
-#define PWBENCH_ALGORITHMS_ARGON2ID_CUH
+#ifndef PWBENCH_ALGORITHMS_ARGON2ID_IMPL_CUH
+#define PWBENCH_ALGORITHMS_ARGON2ID_IMPL_CUH
 
-#include "pwbench/algorithms/argon2id.hpp"
+#include "pwbench/algorithms/argon2id.impl.hpp"
 
 #include <span>
 

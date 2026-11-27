@@ -1,4 +1,4 @@
-#include "pwbench/algorithms/sha256.cuh"
+#include "pwbench/algorithms/sha256.impl.cuh"
 #include "pwbench/cuda_executor.hpp"
 #include "pwbench/strategies/wordlist.hpp"
 

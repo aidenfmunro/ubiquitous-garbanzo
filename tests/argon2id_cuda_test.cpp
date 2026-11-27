@@ -1,5 +1,5 @@
 #include "cuda_test_support.hpp"
-#include "pwbench/algorithms/argon2id.cuh"
+#include "pwbench/algorithms/argon2id.impl.cuh"
 
 namespace {
 

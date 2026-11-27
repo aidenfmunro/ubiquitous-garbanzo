@@ -1,14 +1,14 @@
-#ifndef PWBENCH_ALGORITHMS_SHA256_CUH
-#define PWBENCH_ALGORITHMS_SHA256_CUH
+#ifndef PWBENCH_ALGORITHMS_MD5_IMPL_CUH
+#define PWBENCH_ALGORITHMS_MD5_IMPL_CUH
 
-#include "pwbench/algorithms/sha256.hpp"
+#include "pwbench/algorithms/md5.impl.hpp"
 #include "pwbench/cuda/contracts.hpp"
 
 namespace pwbench {
 
-class Sha256Cuda {
+class Md5Cuda {
 public:
-    using target_type = Sha256::target_type;
+    using target_type = Md5::target_type;
 
     class Session {
     public:
@@ -19,7 +19,7 @@ public:
         void launch(CudaDeviceBatch batch, CudaMatch* match, cudaStream_t stream) const;
 
     private:
-        std::uint32_t digest_[8]{};
+        std::uint32_t digest_[4]{};
         std::size_t batch_size_;
         unsigned threads_;
         unsigned max_grid_;
@@ -30,7 +30,7 @@ public:
                            std::size_t batch_size) const;
 };
 
-static_assert(CudaAlgorithm<Sha256Cuda>);
+static_assert(CudaAlgorithm<Md5Cuda>);
 
 }
 

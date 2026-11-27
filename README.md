@@ -99,9 +99,11 @@ ctest --test-dir build-cuda --output-on-failure
 и быть видны в списке процессов.
 
 Каталоги `src/md5/` и `src/sha256/` содержат реализации соответствующих алгоритмов:
-`.cpp` для CPU и `.cu` для CUDA, а также общие `CMakeLists.txt`. CUDA-части собираются
-только при `PWBENCH_ENABLE_CUDA=ON`. Заголовки находятся в
-`pwbench/algorithms/md5.hpp`, `md5.cuh`, `sha256.hpp` и `sha256.cuh`;
+`*.impl.cpp` для CPU и `*.impl.cu` для CUDA, а также общие `CMakeLists.txt`.
+CUDA-части собираются только при `PWBENCH_ENABLE_CUDA=ON`. Заголовки находятся в
+`pwbench/algorithms/`: `md5.impl.hpp`, `md5.impl.cuh`, `sha256.impl.hpp` и
+`sha256.impl.cuh`. Суффикс `.impl` используется для файлов всех алгоритмов,
+включая Argon2id и PBKDF2; имена обвязки в `modules/` остаются без него.
 CPU-заголовки не включают CUDA-интерфейсы. Точка входа — `src/app/main.cpp`,
 адаптеры для обоих backend — `src/modules/md5.cpp` и `src/modules/sha256.cpp`,
 регистрация сочетаний — `src/app/registrations.cpp`. Общий `src/app/cli.cpp` не знает
@@ -286,11 +288,13 @@ include/pwbench/
   cuda_executor.hpp  батчи, лимиты и запуск независимой CUDA-сессии
   cuda_module.hpp    типизированная регистрация CUDA-сочетаний
   cuda/              device-контракты, host-батч, CUDA stream и буферы
-  algorithms/md5.hpp CPU-интерфейс MD5
-  algorithms/md5.cuh CUDA-интерфейс MD5
-  algorithms/sha256.hpp CPU-интерфейс SHA-256
-  algorithms/sha256.cuh CUDA-интерфейс SHA-256
-  algorithms/pbkdf2_sha256.hpp CPU-интерфейс PBKDF2-HMAC-SHA256
+  algorithms/md5.impl.hpp CPU-интерфейс MD5
+  algorithms/md5.impl.cuh CUDA-интерфейс MD5
+  algorithms/sha256.impl.hpp CPU-интерфейс SHA-256
+  algorithms/sha256.impl.cuh CUDA-интерфейс SHA-256
+  algorithms/argon2id.impl.hpp CPU-интерфейс Argon2id
+  algorithms/argon2id.impl.cuh CUDA-интерфейс Argon2id для одного входа
+  algorithms/pbkdf2_sha256.impl.hpp CPU-интерфейс PBKDF2-HMAC-SHA256
   detail/
     cpu_run_state.hpp состояние одного CPU-запуска
     cuda_source.hpp   последовательное чтение заимствованных кандидатов
@@ -308,13 +312,15 @@ src/
   app/main.cpp       точка входа приложения
   app/registrations.cpp явный список поддерживаемых сочетаний
   modules/           параметры и подготовка алгоритмов/стратегий
-  md5/md5.cpp        CPU-реализация MD5
-  md5/md5.cu         device-реализация MD5 и запуск ядра
-  sha256/sha256.cpp  CPU-реализация SHA-256
-  sha256/sha256.cu   device-реализация SHA-256 и запуск ядра
+  md5/md5.impl.cpp   CPU-реализация MD5
+  md5/md5.impl.cu    device-реализация MD5 и запуск ядра
+  sha256/sha256.impl.cpp CPU-реализация SHA-256
+  sha256/sha256.impl.cu device-реализация SHA-256 и запуск ядра
   cuda/              общие CUDA-ресурсы, упаковка и параметры backend
-  argon2id/argon2id.cpp адаптер к libargon2
-  pbkdf2_sha256/pbkdf2_sha256.cpp адаптер к OpenSSL Crypto
+  argon2id/argon2id.impl.cpp адаптер к libargon2
+  argon2id/argon2id.impl.cu CUDA-реализация Argon2id для одного входа
+  argon2id/cuda_bench.cpp отдельный CPU/CUDA-бенчмарк Argon2id
+  pbkdf2_sha256/pbkdf2_sha256.impl.cpp адаптер к OpenSSL Crypto
 tests/
   CMakeLists.txt     сборка и регистрация тестов
   fixtures.hpp       только тестовые алгоритм и источники кандидатов

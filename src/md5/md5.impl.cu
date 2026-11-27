@@ -1,4 +1,4 @@
-#include "pwbench/algorithms/md5.cuh"
+#include "pwbench/algorithms/md5.impl.cuh"
 
 #include <cuda_runtime.h>
 

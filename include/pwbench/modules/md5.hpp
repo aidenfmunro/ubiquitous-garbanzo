@@ -1,7 +1,7 @@
 #ifndef PWBENCH_MODULES_MD5_HPP
 #define PWBENCH_MODULES_MD5_HPP
 
-#include "pwbench/algorithms/md5.hpp"
+#include "pwbench/algorithms/md5.impl.hpp"
 #include "pwbench/cpu_module.hpp"
 
 namespace pwbench {

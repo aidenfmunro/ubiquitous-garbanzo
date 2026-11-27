@@ -1,4 +1,4 @@
-#include "pwbench/algorithms/md5.hpp"
+#include "pwbench/algorithms/md5.impl.hpp"
 
 #include <algorithm>
 #include <bit>
