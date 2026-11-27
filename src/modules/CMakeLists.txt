@@ -1,10 +1,11 @@
-add_library(pwbench_modules md5.cpp sha256.cpp argon2id.cpp wordlist.cpp)
+add_library(pwbench_modules md5.cpp sha256.cpp argon2id.cpp pbkdf2_sha256.cpp wordlist.cpp)
 add_library(pwbench::modules ALIAS pwbench_modules)
 target_link_libraries(pwbench_modules
     PUBLIC
         pwbench::md5
         pwbench::sha256
         pwbench::argon2id
+        pwbench::pbkdf2_sha256
     PRIVATE
         pwbench::options
 )

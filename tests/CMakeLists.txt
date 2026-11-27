@@ -31,7 +31,7 @@ foreach(suite IN ITEMS contracts cpu_executor registry wordlist)
     pwbench_add_test(${suite} 30 pwbench::core)
 endforeach()
 
-foreach(suite IN ITEMS app modules md5 sha256 argon2id)
+foreach(suite IN ITEMS app modules md5 sha256 argon2id pbkdf2_sha256)
     pwbench_add_test(${suite} 30 pwbench::${suite})
 endforeach()
 

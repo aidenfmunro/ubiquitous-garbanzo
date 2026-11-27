@@ -3,6 +3,7 @@
 #include "pwbench/cpu_module.hpp"
 #include "pwbench/modules/argon2id.hpp"
 #include "pwbench/modules/md5.hpp"
+#include "pwbench/modules/pbkdf2_sha256.hpp"
 #include "pwbench/modules/sha256.hpp"
 #include "pwbench/modules/wordlist.hpp"
 
@@ -18,6 +19,7 @@ Registry make_registry() {
     register_cpu<Md5Module, WordlistModule>(registry);
     register_cpu<Sha256Module, WordlistModule>(registry);
     register_cpu<Argon2idModule, WordlistModule>(registry);
+    register_cpu<Pbkdf2Sha256Module, WordlistModule>(registry);
 #ifdef PWBENCH_ENABLE_CUDA
     register_cuda<Md5CudaModule, WordlistModule>(registry);
     register_cuda<Sha256CudaModule, WordlistModule>(registry);

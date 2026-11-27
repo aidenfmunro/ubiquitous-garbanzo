@@ -368,4 +368,24 @@ TEST_F(Argon2idCliTest, ShowsOptionsRegisteredForArgon2id) {
     EXPECT_NE(result.output.find("--lanes N"), std::string::npos) << result.output;
 }
 
+TEST(Pbkdf2Sha256CliTest, FindsPasswordAndPrintsParameters) {
+    TempDirectory directory;
+    const auto words = directory.write("words.txt", "alpha\npassword\ngamma\n");
+    const auto result = invoke(directory, {"--algorithm", "pbkdf2-sha256", "--strategy", "wordlist",
+                                           "--backend", "cpu", "--password", "password",
+                                           "--wordlist", words.string(), "--iterations", "2"});
+    expects(result, 0,
+            "target_hash: $pbkdf2-sha256$i=2$707762656e63682d70626b6466322121$"
+            "d5fa144b262585c0185bbaebab8b1c109d2bace13a9370c99dd11e220d45cbd6\n"
+            "status: found\ncandidate: \"password\"\nchecks: 2\n");
+}
+
+TEST(Pbkdf2Sha256CliTest, RejectsInvalidIterations) {
+    TempDirectory directory;
+    const auto result =
+        invoke(directory, {"--algorithm", "pbkdf2-sha256", "--strategy", "wordlist", "--backend",
+                           "cpu", "--password", "password", "--iterations", "2147483648"});
+    expects(result, 2, "PBKDF2 iterations must be in range 1..INT_MAX");
+}
+
 }
