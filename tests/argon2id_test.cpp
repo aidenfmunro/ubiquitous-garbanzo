@@ -1,4 +1,4 @@
-#include "pwbench/algorithms/argon2id.hpp"
+#include "pwbench/algorithms/argon2id.impl.hpp"
 #include "pwbench/contracts.hpp"
 
 #include <gtest/gtest.h>

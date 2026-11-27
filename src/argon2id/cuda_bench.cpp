@@ -1,4 +1,4 @@
-#include "pwbench/algorithms/argon2id.cuh"
+#include "pwbench/algorithms/argon2id.impl.cuh"
 #include "pwbench/parameters.hpp"
 
 #include <chrono>

@@ -1,4 +1,4 @@
-add_library(pwbench_sha256 sha256.cpp)
+add_library(pwbench_sha256 sha256.impl.cpp)
 add_library(pwbench::sha256 ALIAS pwbench_sha256)
 target_link_libraries(pwbench_sha256
     PUBLIC
@@ -8,7 +8,7 @@ target_link_libraries(pwbench_sha256
 )
 
 if(PWBENCH_ENABLE_CUDA)
-    add_library(pwbench_sha256_cuda sha256.cu)
+    add_library(pwbench_sha256_cuda sha256.impl.cu)
     add_library(pwbench::sha256_cuda ALIAS pwbench_sha256_cuda)
     set_target_properties(pwbench_sha256_cuda
         PROPERTIES CUDA_RUNTIME_LIBRARY Shared

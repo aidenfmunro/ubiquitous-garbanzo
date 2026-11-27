@@ -1,4 +1,4 @@
-#include "pwbench/algorithms/sha256.cuh"
+#include "pwbench/algorithms/sha256.impl.cuh"
 
 #include <cuda_runtime.h>
 

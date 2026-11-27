@@ -1,7 +1,7 @@
 #ifndef PWBENCH_MODULES_ARGON2ID_HPP
 #define PWBENCH_MODULES_ARGON2ID_HPP
 
-#include "pwbench/algorithms/argon2id.hpp"
+#include "pwbench/algorithms/argon2id.impl.hpp"
 #include "pwbench/cpu_module.hpp"
 
 namespace pwbench {

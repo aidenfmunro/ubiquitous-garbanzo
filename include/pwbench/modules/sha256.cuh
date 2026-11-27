@@ -1,7 +1,7 @@
 #ifndef PWBENCH_MODULES_SHA256_CUH
 #define PWBENCH_MODULES_SHA256_CUH
 
-#include "pwbench/algorithms/sha256.cuh"
+#include "pwbench/algorithms/sha256.impl.cuh"
 #include "pwbench/cuda_module.hpp"
 
 namespace pwbench {

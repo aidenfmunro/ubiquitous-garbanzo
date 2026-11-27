@@ -1,4 +1,4 @@
-#include "pwbench/algorithms/pbkdf2_sha256.hpp"
+#include "pwbench/algorithms/pbkdf2_sha256.impl.hpp"
 
 #include <openssl/evp.h>
 

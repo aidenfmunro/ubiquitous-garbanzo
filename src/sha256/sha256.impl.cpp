@@ -1,4 +1,4 @@
-#include "pwbench/algorithms/sha256.hpp"
+#include "pwbench/algorithms/sha256.impl.hpp"
 
 #include <algorithm>
 #include <bit>
