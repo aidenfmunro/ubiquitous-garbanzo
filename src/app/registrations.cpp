@@ -9,6 +9,7 @@
 
 #ifdef PWBENCH_ENABLE_CUDA
 #include "pwbench/modules/md5.cuh"
+#include "pwbench/modules/pbkdf2_sha256.cuh"
 #include "pwbench/modules/sha256.cuh"
 #endif
 
@@ -23,6 +24,7 @@ Registry make_registry() {
 #ifdef PWBENCH_ENABLE_CUDA
     register_cuda<Md5CudaModule, WordlistModule>(registry);
     register_cuda<Sha256CudaModule, WordlistModule>(registry);
+    register_cuda<Pbkdf2Sha256CudaModule, WordlistModule>(registry);
 #endif
     return registry;
 }
