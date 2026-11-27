@@ -36,6 +36,7 @@ endif()
 add_subdirectory(src/md5)
 add_subdirectory(src/sha256)
 add_subdirectory(src/argon2id)
+add_subdirectory(src/pbkdf2_sha256)
 add_subdirectory(src/modules)
 add_subdirectory(src/app)
 

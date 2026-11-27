@@ -3,7 +3,7 @@
 Расширяемый стенд на C++20. Один эксперимент — один целевой хеш.
 Алгоритмы и стратегии подключаются исходным кодом с пересборкой проекта.
 
-Реализованы CPU-исполнители для MD5, SHA-256 и Argon2id, CUDA-исполнитель
+Реализованы CPU-исполнители для MD5, SHA-256, Argon2id и PBKDF2-HMAC-SHA256, CUDA-исполнитель
 с MD5 и SHA-256, отдельный CUDA-бенчмарк Argon2id, потоковая словарная стратегия,
 автоматическая загрузка SecLists и общий CLI. MD5 и SHA-256 здесь — учебные
 алгоритмы для эксперимента, а не способ хранения реальных паролей.
@@ -11,8 +11,9 @@
 ## Сборка и проверка
 
 Нужны CMake >= 3.24 и C++20-компилятор со стандартной библиотекой,
-поддерживающей concepts и `std::jthread`, а также `libargon2` с заголовком `argon2.h`.
-Argon2id входит в каждую сборку; библиотека и заголовок обязательны.
+поддерживающей concepts и `std::jthread`, а также `libargon2` с заголовком `argon2.h`
+и OpenSSL Crypto с заголовками. Argon2id и PBKDF2-HMAC-SHA256 входят в каждую
+сборку; обе зависимости обязательны.
 
 `cmake/CompilerOptions.cmake` определяет интерфейсную библиотеку `pwbench_options`
 с алиасом `pwbench::options`. Библиотеки, приложение и тесты подключают её через
@@ -158,6 +159,24 @@ printf 'another-fixture\nbench-fixture\n' > build/fixture.txt
 Модуль проверяет остановку перед каждым кандидатом (`poll_interval = 1`),
 а не раз в 256 проверок. Уже выполняющееся хеширование не прерывается.
 
+## Запуск PBKDF2-HMAC-SHA256 на CPU
+
+Алгоритм использует OpenSSL Crypto (`find_package(OpenSSL REQUIRED COMPONENTS Crypto)`).
+`--iterations` задаёт положительное число итераций, по умолчанию 100000;
+значение должно помещаться в знаковый `int` интерфейса OpenSSL.
+Цель содержит 32-байтный ключ и фиксированную публичную 16-байтную соль
+`pwbench-pbkdf2!!` для повторяемых опытов с тестовыми паролями.
+
+```bash
+./build/src/app/pwbench --algorithm pbkdf2-sha256 --strategy wordlist --backend cpu \
+  --password password --iterations 100000
+```
+
+`target_hash` выводится как `$pbkdf2-sha256$i=N$<salt-hex>$<digest-hex>`;
+это формат стенда, а не PHC-строка. Цель готовится до замера. Исполнитель
+проверяет остановку перед каждым кандидатом (`poll_interval = 1`), но уже
+запущенное вычисление не прерывается. CUDA-сочетание не зарегистрировано.
+
 ## Бенчмарк Argon2id на CUDA
 
 `argon2id_cuda_bench` хеширует встроенный тестовый вход с фиксированной солью
@@ -271,13 +290,14 @@ include/pwbench/
   algorithms/md5.cuh CUDA-интерфейс MD5
   algorithms/sha256.hpp CPU-интерфейс SHA-256
   algorithms/sha256.cuh CUDA-интерфейс SHA-256
+  algorithms/pbkdf2_sha256.hpp CPU-интерфейс PBKDF2-HMAC-SHA256
   detail/
     cpu_run_state.hpp состояние одного CPU-запуска
     cuda_source.hpp   последовательное чтение заимствованных кандидатов
   registry.hpp       реестр фабрик и подготовленный эксперимент
   parameters.hpp     описания параметров и строковые значения
   cpu_module.hpp     типизированное связывание алгоритма и стратегии
-  modules/           контракты адаптеров MD5, SHA-256 и Argon2id
+  modules/           контракты адаптеров MD5, SHA-256, Argon2id и PBKDF2
   strategies/wordlist.hpp потоковая словарная стратегия
   app/cli.hpp       интерфейс общего приложения
 src/
@@ -294,6 +314,7 @@ src/
   sha256/sha256.cu   device-реализация SHA-256 и запуск ядра
   cuda/              общие CUDA-ресурсы, упаковка и параметры backend
   argon2id/argon2id.cpp адаптер к libargon2
+  pbkdf2_sha256/pbkdf2_sha256.cpp адаптер к OpenSSL Crypto
 tests/
   CMakeLists.txt     сборка и регистрация тестов
   fixtures.hpp       только тестовые алгоритм и источники кандидатов
